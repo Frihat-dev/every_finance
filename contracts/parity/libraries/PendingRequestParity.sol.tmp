@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: MIT
+// Transformative.Fi Contracts
+import "./ParityMath.sol";
+pragma solidity ^0.8.4;
+struct PendingRequestParityData {
+    Amount lockedAmount;
+    Amount availableAmount;
+    uint256 eventId;
+}
+
+/**
+ * @dev Implementation of the library PendingRequest that proposes functions to update for an investor a struct PendingRequestData.
+ */
+library PendingRequestParity {
+    /**
+     * @dev Modifier that update for an investor his pending request data
+     * to be synchronized with the current event id.
+     */
+    modifier syncWithEventId(
+        PendingRequestParityData storage request,
+        uint256 currentEventId_
+    ) {
+        if (currentEventId_ > request.eventId) {
+            request.lockedAmount = ParityMath.add(
+                request.lockedAmount,
+                request.availableAmount
+            );
+            request.availableAmount = Amount(0, 0, 0);
+            request.eventId = currentEventId_;
+        }
+        _;
+    }
+
+    /**
+     * @dev increase a pending request `request` by `amount`.
+     * This function is called when an investor makes a deposit/withdrawal request.
+     * @param request  pending request.
+     * @param amount_ amount to add.
+     * @param currentEventId_  id of the next manager event (process).
+     */
+    function increase(
+        PendingRequestParityData storage request,
+        Amount amount_,
+        uint256 currentEventId_
+    ) internal syncWithEventId(request, currentEventId_) {
+        request.availableAmount = ParityMath.add(
+            request.availableAmount,
+            amount_
+        );
+    }
+
+    /**
+     * @dev decrease a pending request `request` by `amount`.
+     * This function is called when an investor cancels a deposit/withdrawal request.
+     * @param request  pending request.
+     * @param amount_ amount to remove.
+     * @param currentEventId_  id of the next manager event (process).
+     */
+    function decrease(
+        PendingRequestData storage request,
+        Amount amount_,
+        uint256 currentEventId_
+    ) internal syncWithEventId(request, currentEventId_) {
+        request.availableAmount = ParityMath.sub(
+            request.availableAmount,
+            amount_
+        );
+    }
+
+    /**
+     * @dev update event Id
+     *
+     * @param request pending request.
+     * @param currentEventId_  id of the next manager event (process).
+     */
+    function updateEventId(
+        PendingRequestData storage request,
+        uint256 currentEventId_
+    ) internal {
+        request.eventId = currentEventId_;
+    }
+
+    /**
+     * @dev update the locked and available pending balances of `request` before the manager validation.
+     * @param request pending request.
+     * @param currentEventId_  id of the next manager event (process).
+     */
+    function preValidate(
+        PendingRequestData storage request,
+        uint256 currentEventId_
+    ) internal syncWithEventId(request, currentEventId_) {}
+
+    /**
+     * @dev decrease the locked pending balance of `request` after the manager validation by `amount`.
+     * @param request pending request.
+     * @param currentEventId_  id of the next manager event (process).
+     */
+    function validate(
+        PendingRequestData storage request,
+        Amount amount_,
+        uint256 currentEventId_
+    ) internal syncWithEventId(request, currentEventId_) {
+        request.lockedAmount = ParityMath.add(request.lockedAmount, amount_);
+    }
+}

@@ -1,0 +1,356 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.8;
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+import "./LendingPool.sol";
+import "./AssetPriceOracle.sol";
+import "./CollateralPriceOracle.sol";
+import "./libraries/AssetTransfer.sol";
+import "./LiquidationThreshold.sol";
+
+contract CollateralPool is AccessControlEnumerable, Pausable {
+    using Math for uint256;
+    uint256 public borrowCap;
+    uint256 public totalDebt;
+    uint256 public liquidationPenality;
+    bool public isActivated;
+    address public token;
+    address payable public lendingPool;
+    address[] public assets;
+    mapping(address => mapping(address => uint256)) public debts;
+    mapping(address => uint256) public collaterals;
+    AssetPriceOracle public assetPriceOracle;
+    CollateralPriceOracle public collateralPriceOracle;
+    LiquidationThreshold public liquidationThreshold;
+   
+    event Supply(address indexed to_, uint256 amount_);
+    event Withdraw(
+        address indexed caller_,
+        uint256 amount_
+    );
+    event Borrow(
+        address indexed caller_,
+        address indexed asset_,
+        uint256 amount_
+    );
+    event Repay(
+        address indexed asset_,
+        uint256 amount_,
+        address indexed to_
+    );
+
+    constructor(
+        address admin_,
+        address payable lendingPool_,
+        address assetPriceOracle_,
+        address collateralPriceOracle_,
+        address liquidationThreshold_
+    ) payable {
+        require(admin_ != address(0), "Every Finance: zero address");
+        require(lendingPool_ != address(0), "Every Finance: zero address");
+        require(assetPriceOracle_ != address(0), "Every Finance: zero address");
+        require(liquidationThreshold_ != address(0), "Every Finance: zero address");
+        require(lendingPool_ != address(0), "Every Finance: zero address");
+        lendingPool = lendingPool_;
+        assetPriceOracle = AssetPriceOracle(assetPriceOracle_);
+        collateralPriceOracle = CollateralPriceOracle(collateralPriceOracle_);
+        liquidationThreshold = LiquidationThreshold(liquidationThreshold_);
+        _setupRole(DEFAULT_ADMIN_ROLE, admin_);
+    }
+
+    function _updateParams(address asset_) internal {
+        LendingPool(lendingPool).updateModelParams(asset_);
+    }
+
+    receive() external payable {}
+
+    function updatedCollateral(
+        uint256 borrowCap_,
+        uint256 liquidationPenality_
+    ) external {
+        require(
+            !isActivated,
+            "Every Finance: token is already existed"
+        );
+        borrowCap = borrowCap_;
+        liquidationPenality = liquidationPenality_;
+        isActivated = true;
+    }
+
+    function supply(
+        uint256 amount_,
+        address to_
+    ) external whenNotPaused {
+        require(to_ != address(0), "Every Finance: zero address");
+        require(amount_ != 0, "Every Finance: zero amount");
+        require(isActivated, "Every Finance: asset is not listed");
+        uint256 totalLoan_ = getLoanValue(to_);
+        if (totalLoan_ != 0) {
+            (bool isLiquidable_, ) = isLiquidablePosition(to_);
+            require(
+                !isLiquidable_,
+                "Every Finance: borrower's position is liquidable"
+            ); 
+        }
+        AssetTransfer.transferFrom(
+            msg.sender,
+            address(this),
+            amount_,
+            IERC20(token)
+        );
+       collaterals[to_] += amount_;
+        emit Supply(to_, amount_);
+    }
+
+    function withdraw(uint256 amount_, address to_) external {
+        require(to_ != address(0), "Every Finance: zero address");
+        require(amount_ != 0, "Every Finance: zero amount");
+        uint256 borrowerBalance_ = collaterals[msg.sender];
+        require(
+           borrowerBalance_ >= amount_,
+            "Every Finance: amount exceeds balance"
+        );
+        unchecked {
+           collaterals[msg.sender] -= amount_;
+        }
+
+         uint256 totalLoan_ = getLoanValue(msg.sender);
+        if (totalLoan_ != 0) {
+            CheckLoanCondition(msg.sender);
+        }
+        AssetTransfer.transfer(to_, amount_, token);
+        emit Withdraw(msg.sender, amount_);
+    }
+
+
+    function borrow(
+        address asset_,
+        uint256 amount_,
+        address to_
+    ) external payable {
+        require(to_ != address(0), "Every Finance: zero address");
+        require(amount_ != 0, "Every Finance: zero amount");
+        require(isActivated, "Every Finance: LP token is not listed");
+        _updateParams(asset_);
+        (uint256 price_, ) = LendingPool(lendingPool).getTokenPrice(asset_);
+        uint256 lTokenAmount_ = (amount_ * DECIMAL_FACTOR) / price_;
+        debts[msg.sender][asset_] += lTokenAmount_;
+        CheckLoanCondition(msg.sender);
+        LendingPool(lendingPool).mintOrBurnLToken(
+            token,
+            asset_,
+            lTokenAmount_,
+            amount_,
+            msg.sender,
+            true
+        );
+        LendingPool(lendingPool).sendAsset(token, asset_, amount_, to_);
+        emit Borrow(msg.sender, asset_, amount_);
+    }
+
+    function repay(
+        address asset_,
+        uint256 amount_,
+        address to_
+    ) external payable {
+        require(to_ != address(0), "Every Finance: zero address");
+        require(amount_ != 0, "Every Finance: zero amount");
+        _updateParams(asset_);
+        uint256 totalLoan_ = getLoanValue(to_);
+        if (totalLoan_ != 0) {
+            (bool isLiquidable_, ) = isLiquidablePosition(to_);
+            require(
+                !isLiquidable_,
+                "Every Finance: borrower's position is liquidable"
+            );
+        }
+        (uint256 price_, ) = LendingPool(lendingPool).getTokenPrice(asset_);
+        uint256 lTokenAmount_ = (amount_ * DECIMAL_FACTOR) / price_;
+        uint256 _debt = debts[to_][asset_];
+        uint256 amountToRepay_;
+        require(_debt != 0, "Every Finance: no loan to repay");
+            _debt = Math.min(
+                _debt,
+                lTokenAmount_
+            );
+        debts[to_][asset_] -= _debt;
+         amountToRepay_ =
+                (_debt * price_) /
+                DECIMAL_FACTOR;
+       
+        LendingPool(lendingPool).mintOrBurnLToken(
+            token,
+            asset_,
+            _debt,
+            amountToRepay_,
+            to_,
+            false
+        );
+
+        if (asset_ != address(0)) {
+            AssetTransfer.transferFrom(
+                msg.sender,
+                lendingPool,
+                amountToRepay_,
+                IERC20(asset_)
+            );
+        } else {
+            require((msg.value == amount_), "Every Finance: no required amount");
+            payable(lendingPool).transfer(amountToRepay_);
+            payable(msg.sender).transfer(amount_ -  amountToRepay_);
+        }
+        emit Repay(asset_, amountToRepay_, to_);
+    }
+
+    function liquidate(
+        address asset_,
+        uint256 amount_,
+        address to_
+    ) external payable {
+        require(to_ != address(0), "Every Finance: zero address");
+        require(amount_ != 0, "Every Finance: zero amount");
+        _updateParams(asset_);
+        uint256 totalLoan_ = getLoanValue(to_);
+        if (totalLoan_ != 0) {
+            (bool isLiquidable_, ) = isLiquidablePosition(to_);
+            require(
+                isLiquidable_,
+                "Every Finance: borrower's position is not liquidable"
+            );
+        }
+        uint256 tokenPrice_;
+        uint256 assetPrice_;
+        uint256 lTokenPrice_;
+        uint256 borrowerBalance_ = collaterals[to_];
+        uint256 _debt = debts[to_][asset_];
+        require(_debt != 0, "Every Finance: no loan to repay");
+        borrowerBalance_ -=  (borrowerBalance_ *  liquidationPenality) / DECIMAL_FACTOR;
+        (tokenPrice_, ) = collateralPriceOracle.getCollateralPrice(token);
+        assetPrice_ = assetPriceOracle.getAssetPrice(asset_);
+        (lTokenPrice_, ) = LendingPool(lendingPool).getTokenPrice(asset_);
+        uint256 amountToRepay_ = Math.min(amount_ * assetPrice_ / DECIMAL_FACTOR, borrowerBalance_ *  tokenPrice_ / DECIMAL_FACTOR);
+        amountToRepay_ = Math.min(amountToRepay_, _debt * assetPriceOracle.getAssetPrice(asset_) * assetPrice_)/ (DECIMAL_FACTOR * DECIMAL_FACTOR);
+        borrowerBalance_ = (amountToRepay_ * DECIMAL_FACTOR)/ tokenPrice_;
+        borrowerBalance_ += ( borrowerBalance_ *  liquidationPenality) / DECIMAL_FACTOR;
+        collaterals[to_] -=  borrowerBalance_;
+        amountToRepay_ = (amountToRepay_ *  DECIMAL_FACTOR) /  assetPrice_;
+        _debt = (amountToRepay_ * DECIMAL_FACTOR) / lTokenPrice_;
+        debts[to_][asset_] -= _debt;
+        LendingPool(lendingPool).mintOrBurnLToken(
+            token,
+            asset_,
+            _debt,
+            amountToRepay_,
+            to_,
+            false
+        );
+
+        if (asset_ != address(0)) {
+            AssetTransfer.transferFrom(
+                msg.sender,
+                lendingPool,
+                amountToRepay_,
+                IERC20(asset_)
+            );
+        } else {
+            require((msg.value == amount_), "Every Finance: no required amount");
+            payable(lendingPool).transfer(amountToRepay_);
+            payable(msg.sender).transfer(amount_ - amountToRepay_); 
+        }
+        IERC20(token).transfer(msg.sender, borrowerBalance_);
+        
+        emit Repay(asset_, amountToRepay_, to_);
+    }
+
+
+ 
+
+    
+    function getCollateralFactor(
+        address borrower_
+    ) public view returns (uint256 value_) {
+        uint256 collateral_ = getCollateralValue(borrower_);
+        uint256 loan_ = getLoanValue(borrower_);
+        require(loan_ != 0, "Every Finance: loan value is zero");
+        value_ = (loan_ * DECIMAL_FACTOR) / collateral_;
+    }
+
+    function getCollateralValue(
+        address borrower_
+    ) public view returns (uint256 value_) {
+        (uint256 tokenPrice_, ) = collateralPriceOracle.getCollateralPrice(
+            token
+        );
+          uint256 collateral_ = collaterals[borrower_];
+        value_ = (tokenPrice_ * collateral_) / DECIMAL_FACTOR;
+    }
+
+    function getLoanValue(
+        address borrower_
+    ) public view returns (uint256 value_) {
+        uint256 size_ = assets.length;
+        uint256 price_;
+        address asset_;
+        for(uint i=0; i< size_; i++){
+           asset_ = assets[i];
+           price_ = assetPriceOracle.getAssetPrice(asset_);
+            value_ += debts[borrower_][asset_] * price_;
+        }
+        value_ = value_ / DECIMAL_FACTOR;
+    }
+
+
+
+        
+    function CheckLoanCondition(
+        address borrower_
+    ) public view returns (bool) {
+        uint256 collateralValue_ = getCollateralValue(borrower_);
+        uint256 loanValue_ = getLoanValue(borrower_);
+        ( ,uint256 loanToValue_, ) = liquidationThreshold.getAssetThreshold(token);
+       if ((loanValue_  * DECIMAL_FACTOR) / collateralValue_ <=  loanToValue_){
+           return true;
+       } else {
+        return false;
+       }
+    }
+
+    function isLiquidablePosition(
+        address borrower_
+    ) public view returns (bool isLiquidable_, uint256 liquidationThreshold_) {
+          uint256 collateralValue_ = getCollateralValue(borrower_);
+        uint256 loanValue_ = getLoanValue(borrower_);
+        (liquidationThreshold_, ,) = liquidationThreshold.getAssetThreshold(token);
+       if ((loanValue_  * DECIMAL_FACTOR) / collateralValue_ >=  liquidationThreshold_){
+           return (true, liquidationThreshold_);
+       } else {
+        return (false, liquidationThreshold_);
+       }
+    }
+
+
+    
+
+  
+
+    function UpdateLiquidationPremuim(
+        uint256 liquidationPenality_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        
+        require(isActivated, "Every Finance: LP token is not listed");
+        liquidationPenality = liquidationPenality_;
+    }
+
+    function UpdateTokenState(
+        bool state_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        
+        require(isActivated != state_, "Every Finance: no change");
+        isActivated = state_;
+    }
+
+    
+
+   
+}
