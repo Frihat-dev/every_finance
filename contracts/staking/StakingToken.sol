@@ -4,6 +4,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "../libraries/AssetTransfer.sol";
 
 contract StakingToken is Ownable, Pausable {
     using Math for uint256;
@@ -13,7 +14,6 @@ contract StakingToken is Ownable, Pausable {
     struct Pack {
         address rewardToken;
         uint256 rewardTotal;
-        uint256 startTime;
         uint256 periodFinish;
         uint256 lastUpdateTime;
         uint256 rewardDuration;
@@ -21,22 +21,22 @@ contract StakingToken is Ownable, Pausable {
         uint256 rewardPerTokenStored;
         uint256 minBoostingFactor;
         uint256 minTotalSupply;
+        uint256 minRatio;
+        uint256 idealAmount;
     }
     struct Balance {
         uint256 amount0;
         uint256 amount1;
     }
 
-    uint256 public ratio;
-    uint256 public idealAmount;
     address public treasury;
     Balance private totalSupply;
     Pack[] public packs;
     mapping(uint256 => mapping(address => uint256)) public rewardPerTokenPaid;
     mapping(uint256 => mapping(address => uint256)) public rewards;
     mapping(address => Balance) private balances;
-    IERC20 public token0;
-    IERC20 public token1;
+    address public token0;
+    address public token1;
 
     event Staked(uint256 _amount0, uint256 _amount1, address indexed _to);
     event Unstaked(uint256 _amount0, uint256 _amount1, address indexed _to);
@@ -52,8 +52,8 @@ contract StakingToken is Ownable, Pausable {
         require(_token0 != address(0), "Formation.Fi: zero address");
         require(_token1 != address(0), "Formation.Fi: zero address");
         require(_treasury != address(0), "Formation.Fi: zero address");
-        token0 = IERC20(_token0);
-        token1 = IERC20(_token1);
+        token0 = _token0;
+        token1 = _token1;
         treasury = _treasury;
     }
 
@@ -76,44 +76,43 @@ contract StakingToken is Ownable, Pausable {
         totalSupply = _totalSupply;
     }
 
-    function setRatio(uint256 _ratio) external onlyOwner {
-        ratio = _ratio;
-    }
-
-    function setIdealAmount(uint256 _amount) external onlyOwner {
-        idealAmount = _amount;
-    }
-
     function addPack(
         address _rewardToken,
-        uint256 _startTime,
+        uint256  _reward,
         uint256 _rewardDuration,
         uint256 _minBoostingFactor,
-        uint256 _minTotalSupply
+        uint256 _minTotalSupply, 
+        uint256 _minRatio,
+        uint256 _idealAmount
     ) external onlyOwner {
+        require(_reward != 0, "zero amount");
+        uint256 _rewardPerSecond = _reward / _rewardDuration;
+        uint256 _periodFinish = block.timestamp + _rewardDuration;
         packs.push(
             Pack(
                 _rewardToken,
-                0,
-                _startTime,
-                0,
-                0,
+                _reward,
+                _periodFinish ,
+                block.timestamp,
                 _rewardDuration,
-                0,
+                _rewardPerSecond,
                 0,
                 _minBoostingFactor,
-                _minTotalSupply
+                _minTotalSupply,
+                _minRatio,
+                _idealAmount
             )
         );
+        AssetTransfer.transferFrom(msg.sender, treasury, _reward, IERC20(_rewardToken));
     }
 
-    function updateRewardDuration(
-        uint256 _id,
-        uint256 _rewardDuration
-    ) external onlyOwner {
-        require(_id < packs.length, "Formation.Fi: no pack");
-        packs[_id].rewardDuration = _rewardDuration;
-    }
+   // function updateRewardDuration(
+    //    uint256 _id,
+     //   uint256 _rewardDuration
+    //) external onlyOwner {
+       // require(_id < packs.length, "Formation.Fi: no pack");
+       // packs[_id].rewardDuration = _rewardDuration;
+    //}
 
     function getTotalSupply() external view returns (Balance memory) {
         return totalSupply;
@@ -148,7 +147,7 @@ contract StakingToken is Ownable, Pausable {
     function earned(uint256 _id, address _to) public view returns (uint256) {
         require(_id < packs.length, "Formation.Fi: no pack");
         return
-            (Math.max(packs[_id].minBoostingFactor, boostingRewardFactor(_to)) *
+            (Math.max(packs[_id].minBoostingFactor, boostingRewardFactor(_to, _id)) *
                 (balances[_to].amount0 *
                     (rewardPerToken(_id) - rewardPerTokenPaid[_id][_to]))) /
             (COEFF_SCALE_DECIMALS * COEFF_SCALE_DECIMALS);
@@ -168,12 +167,12 @@ contract StakingToken is Ownable, Pausable {
         if (_amount0 != 0) {
             totalSupply.amount0 += _amount0;
             balances[_to].amount0 += _amount0;
-            token0.safeTransferFrom(msg.sender, address(this), _amount0);
+            AssetTransfer.transferFrom(msg.sender, address(this), _amount0, IERC20(token0));
         }
         if (_amount1 != 0) {
             totalSupply.amount1 += _amount1;
             balances[_to].amount1 += _amount1;
-            token1.safeTransferFrom(msg.sender, address(this), _amount1);
+            AssetTransfer.transferFrom(msg.sender, address(this), _amount1,  IERC20(token1));
         }
         emit Staked(_amount0, _amount1, _to);
     }
@@ -184,7 +183,6 @@ contract StakingToken is Ownable, Pausable {
         address _to
     ) public whenNotPaused updateReward {
         require(_amount0 != 0 || _amount1 != 0, "Formation.Fi: amount is zero");
-
         _updateReward(msg.sender);
         if (_amount0 != 0) {
             require(
@@ -198,7 +196,8 @@ contract StakingToken is Ownable, Pausable {
             unchecked {
                 balances[msg.sender].amount0 -= _amount0;
             }
-            token0.safeTransfer(_to, _amount0);
+
+            AssetTransfer.transfer(_to, _amount0, token0);
         }
 
         if (_amount1 != 0) {
@@ -213,7 +212,7 @@ contract StakingToken is Ownable, Pausable {
             unchecked {
                 balances[msg.sender].amount1 -= _amount1;
             }
-            token0.safeTransfer(_to, _amount1);
+            AssetTransfer.transfer(_to, _amount1, token1);
         }
         emit Unstaked(_amount0, _amount1, msg.sender);
     }
@@ -223,13 +222,9 @@ contract StakingToken is Ownable, Pausable {
         _updateReward(_to);
         for (uint256 i = 0; i < packs.length; i++) {
             _reward = rewards[i][msg.sender];
-            if (_reward > 0) {
+            if (_reward != 0) {
                 rewards[i][msg.sender] = 0;
-                IERC20(packs[i].rewardToken).safeTransferFrom(
-                    treasury,
-                    _to,
-                    _reward
-                );
+                AssetTransfer.transferFrom(treasury, _to, _reward,  IERC20(packs[i].rewardToken));
                 emit RewardPaid(packs[i].rewardToken, _reward, msg.sender);
             }
         }
@@ -244,28 +239,31 @@ contract StakingToken is Ownable, Pausable {
         claim(_to);
     }
 
-    function supplyTokenReward(
-        uint256 _id,
-        uint256 _amountToken
-    ) external onlyOwner {
-        packs[_id].rewardTotal += _amountToken;
-        IERC20(packs[_id].rewardToken).transferFrom(
-            msg.sender,
-            treasury,
-            _amountToken
-        );
-    }
+  //  function supplyTokenReward(
+   //     uint256 _id,
+   //     uint256 _amountToken
+    //) external onlyOwner {
+      //  packs[_id].rewardTotal += _amountToken;
+     //   IERC20(packs[_id].rewardToken).transferFrom(
+       //     msg.sender,
+         //   treasury,
+        //    _amountToken
+     //   );
+   // }
 
     function boostingRewardFactor(
-        address _to
+        address _to, 
+        uint256 _id
     ) public view returns (uint256 _factor) {
         uint256 _amount0 = balances[_to].amount0;
         uint256 _amount1 = balances[_to].amount1;
         Balance memory _ratio;
+        if (_amount1 != 0){
         _ratio.amount0 = (_amount0 * COEFF_SCALE_DECIMALS) / _amount1;
-        _ratio.amount1 = (_amount1 * COEFF_SCALE_DECIMALS) / idealAmount;
+        }
+        _ratio.amount1 = (_amount1 * COEFF_SCALE_DECIMALS) / packs[_id].idealAmount;
         uint256 _maxRatio = Math.max(_ratio.amount0, _ratio.amount1);
-        if (_maxRatio <= ratio) {
+        if (_maxRatio <= packs[_id].minRatio) {
             _factor = _maxRatio;
         } else {
             _factor = COEFF_SCALE_DECIMALS;
@@ -276,13 +274,14 @@ contract StakingToken is Ownable, Pausable {
         uint256 _id,
         uint256 _reward,
         uint256 _rewardsDuration
-    ) external updateReward {
+    ) external onlyOwner updateReward {
         _rewardsDuration = Math.max(
             _rewardsDuration,
             packs[_id].rewardDuration
         );
-        require(_rewardsDuration > 0, "Formation.Fi: zero rewardsDuration");
-        packs[_id].rewardTotal += _reward;
+        require(_rewardsDuration != 0, "Formation.Fi: zero rewardsDuration");
+        uint256 _rewardTotal = packs[_id].rewardTotal + _reward;
+        packs[_id].rewardTotal = _rewardTotal;
         if (block.timestamp >= packs[_id].periodFinish) {
             packs[_id].rewardPerSecond = _reward / _rewardsDuration;
         } else {
@@ -293,7 +292,9 @@ contract StakingToken is Ownable, Pausable {
                 _rewardsDuration;
 
             address _rewardToken = packs[_id].rewardToken;
-            IERC20(_rewardToken).transferFrom(msg.sender, treasury, _reward);
+            if (_reward != 0){
+                AssetTransfer.transferFrom(msg.sender, treasury, _reward,  IERC20(_rewardToken));
+            }
             uint256 _balance = IERC20(_rewardToken).balanceOf(treasury);
             require(
                 packs[_id].rewardPerSecond <= _balance / _rewardsDuration,

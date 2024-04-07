@@ -17,7 +17,7 @@ contract ManagementParityParams is AccessControlEnumerable {
         uint256 minValue;
         uint256 maxValue;
     }
-    uint256 public minDepositAmount;
+    uint256 public depositMinAmount;
     DepositFee public depositFee;
     DepositFee public rebalancingFee;
     uint256 public fixedWithdrawalFee;
@@ -38,10 +38,10 @@ contract ManagementParityParams is AccessControlEnumerable {
         treasury = _treasury;
     }
 
-    function setMinDepositAmount(
-        uint256 _minDepositAmount
+    function setDepositMinAmount(
+        uint256 _depositMinAmount
     ) external onlyRole(MANAGER) {
-        minDepositAmount = _minDepositAmount;
+        depositMinAmount = _depositMinAmount;
     }
 
     /**
