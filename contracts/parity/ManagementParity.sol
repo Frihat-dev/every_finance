@@ -11,7 +11,6 @@ import "../common/Investment.sol";
 import "./ManagementParityParams.sol";
 import "./TokenParityStorage.sol";
 import "./TokenParityView.sol";
-import "hardhat/console.sol";
 import "./ISafeHouse.sol";
 
 /** 
@@ -219,9 +218,6 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
 
     function withdrawManagerRequest(ParityData.Amount memory withdrawalAmount_, ParityData.Amount memory rebalancingWithdrawalAmount_) external onlyRole(MANAGER) {
         ParityData.Amount memory amount_ = ParityMath.add2(withdrawalAmount_, rebalancingWithdrawalAmount_);
-        console.log(amount_.alpha);
-        console.log(amount_.beta);
-        console.log(amount_.gamma);
        TokenParityStorage(tokenParityStorage).updateTotalBalances(ParityData.Amount(0,0,0), withdrawalAmount_, ParityData.Amount(0,0,0),
        rebalancingWithdrawalAmount_); 
         ParityMath.add(totalWithdrawalAmount, withdrawalAmount_);
@@ -293,11 +289,7 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
         _totalTokenAmount = Math.mulDiv(_amount, totalCashAmount.alpha, (totalCashAmount.alpha + totalRebalancingCashAmount.alpha));
         _totalRebalancingTokenAmount = Math.mulDiv(_amount, totalRebalancingCashAmount.alpha, (totalCashAmount.alpha + totalRebalancingCashAmount.alpha));
          
-          console.log(totalRebalancingCashAmount.alpha);
-          console.log(validatedRebalancingCashAmount.alpha);
-          console.log(_totalRebalancingTokenAmount);
-         
-         _dataOut = _distributeDepositToken( _id, DataIn(totalCashAmount.alpha, validatedCashAmount.alpha, totalRebalancingCashAmount.alpha,
+        _dataOut = _distributeDepositToken( _id, DataIn(totalCashAmount.alpha, validatedCashAmount.alpha, totalRebalancingCashAmount.alpha,
          validatedRebalancingCashAmount.alpha, _totalTokenAmount, _totalRebalancingTokenAmount), _tokenIds);
 
         totalCashAmount.alpha =  _dataOut.totalCashAmount;
@@ -320,12 +312,6 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
         if( _amount != 0 && (totalCashAmount.beta + totalRebalancingCashAmount.beta)!=0){
         _totalTokenAmount = Math.mulDiv(_amount, totalCashAmount.beta, (totalCashAmount.beta + totalRebalancingCashAmount.beta));
         _totalRebalancingTokenAmount = Math.mulDiv(_amount, totalRebalancingCashAmount.beta, (totalCashAmount.beta + totalRebalancingCashAmount.beta));
-        
-          console.log(totalRebalancingCashAmount.beta);
-          console.log(validatedRebalancingCashAmount.beta);
-          console.log(_totalRebalancingTokenAmount);
-
-
         _dataOut =_distributeDepositToken( _id, DataIn(totalCashAmount.beta, validatedCashAmount.beta, totalRebalancingCashAmount.beta,
         validatedRebalancingCashAmount.beta, _totalTokenAmount, _totalRebalancingTokenAmount), _tokenIds);
 
@@ -354,11 +340,6 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
          if( _amount != 0 && (totalCashAmount.gamma + totalRebalancingCashAmount.gamma)!=0){
         _totalTokenAmount = Math.mulDiv(_amount, totalCashAmount.gamma, (totalCashAmount.gamma + totalRebalancingCashAmount.gamma));
         _totalRebalancingTokenAmount = Math.mulDiv(_amount, totalRebalancingCashAmount.gamma, (totalCashAmount.gamma + totalRebalancingCashAmount.gamma));
-        
-          console.log(totalRebalancingCashAmount.gamma);
-          console.log(validatedRebalancingCashAmount.gamma);
-          console.log(_totalRebalancingTokenAmount);
-        
         _dataOut =_distributeDepositToken( _id, DataIn(totalCashAmount.gamma, validatedCashAmount.gamma, totalRebalancingCashAmount.gamma,
         validatedRebalancingCashAmount.gamma, _totalTokenAmount, _totalRebalancingTokenAmount), _tokenIds);
 
@@ -404,7 +385,6 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
                 __totalCashAmount += _cashAmount;
                 __totalTokenAmount += _tokenAmount;
                 TokenParityStorage(tokenParityStorage).updateDepositBalancePerToken(_tokenIds[i], _cashAmount, indexEvent, _id);
-                //console.log(_tokenAmount);
                 if (_tokenAmount != 0 ){
                 TokenParityStorage(tokenParityStorage).updateTokenBalancePerToken(_tokenIds[i], _tokenAmount, _id);
                 }
@@ -416,7 +396,6 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
                 _dataIn.totalRebalancingCashAmount));
                 _tokenAmount = Math.mulDiv(_cashAmount, _dataIn.totalRebalancingTokenAmount, 
                 _dataIn.validatedRebalancingCashAmount);
-                console.log(_cashAmount);
                 TokenParityStorage(tokenParityStorage).updateRebalancingDepositBalancePerToken(_tokenIds[i], _cashAmount,
                  indexEvent, _id);
                 __totalRebalancingCashAmount += _cashAmount;
@@ -457,7 +436,6 @@ contract ManagementParity is  IERC721Receiver, AccessControlEnumerable {
                 _withdrawalAmount = Math.min(_withdrawalAmount, Math.mulDiv(_withdrawalAmount, _dataIn.validatedCashAmount
                 ,_dataIn.totalCashAmount));
                 _cashAmount = Math.mulDiv(_withdrawalAmount, _dataIn.totalTokenAmount, _dataIn.validatedCashAmount);
-                //console.log(_withdrawalAmount);
                 TokenParityStorage(tokenParityStorage).updateWithdrawalBalancePerToken(_tokenIds[i], _withdrawalAmount, indexEvent, _id);
                 stableToken.safeTransfer(IERC721(tokenParity).ownerOf(_tokenIds[i]), _cashAmount / amountScaleDecimals);   
                 __totalWithdrawalAmount += _withdrawalAmount; 
