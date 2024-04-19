@@ -2,14 +2,15 @@
 pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "../libraries/AssetTransfer.sol";
 
-contract StakingToken is Ownable, Pausable {
+contract StakingToken is AccessControlEnumerable, Pausable {
     using Math for uint256;
     using SafeERC20 for IERC20;
     uint256 public constant COEFF_SCALE_DECIMALS = 1e18;
+    bytes32 public constant MANAGER = keccak256("MANAGER");
 
     struct Pack {
         address rewardToken;
@@ -21,8 +22,9 @@ contract StakingToken is Ownable, Pausable {
         uint256 rewardPerTokenStored;
         uint256 minBoostingFactor;
         uint256 minTotalSupply;
-        uint256 minRatio;
+        uint256 idealRatio;
         uint256 idealAmount;
+        uint256 minAmount;
     }
     struct Balance {
         uint256 amount0;
@@ -48,13 +50,15 @@ contract StakingToken is Ownable, Pausable {
     event RewardAdded(uint256 _id, uint256 _reward);
     event RewardsDurationUpdated(uint256 _id, uint256 _rewardsDuration);
 
-    constructor(address _token0, address _token1, address _treasury) {
+    constructor(address _token0, address _token1, address _admin, address _treasury) {
         require(_token0 != address(0), "Formation.Fi: zero address");
         require(_token1 != address(0), "Formation.Fi: zero address");
+        require(_admin!= address(0), "Formation.Fi: zero address");
         require(_treasury != address(0), "Formation.Fi: zero address");
         token0 = _token0;
         token1 = _token1;
         treasury = _treasury;
+        _setupRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
     modifier updateReward() {
@@ -72,7 +76,7 @@ contract StakingToken is Ownable, Pausable {
         }
     }
 
-    function setTotalSupply(Balance memory _totalSupply) external onlyOwner {
+    function setTotalSupply(Balance memory _totalSupply) external onlyRole(DEFAULT_ADMIN_ROLE) {
         totalSupply = _totalSupply;
     }
 
@@ -82,10 +86,12 @@ contract StakingToken is Ownable, Pausable {
         uint256 _rewardDuration,
         uint256 _minBoostingFactor,
         uint256 _minTotalSupply, 
-        uint256 _minRatio,
-        uint256 _idealAmount
-    ) external onlyOwner {
+        uint256 _idealRatio,
+        uint256 _idealAmount,
+        uint256 _minAmount
+    ) external onlyRole(MANAGER) {
         require(_reward != 0, "zero amount");
+        require(_idealRatio != 0 , "zero amount");
         uint256 _rewardPerSecond = _reward / _rewardDuration;
         uint256 _periodFinish = block.timestamp + _rewardDuration;
         packs.push(
@@ -99,11 +105,17 @@ contract StakingToken is Ownable, Pausable {
                 0,
                 _minBoostingFactor,
                 _minTotalSupply,
-                _minRatio,
-                _idealAmount
+                _idealRatio,
+                _idealAmount,
+                _minAmount
             )
         );
         AssetTransfer.transferFrom(msg.sender, treasury, _reward, IERC20(_rewardToken));
+    }
+
+    function setTreasury(address _treasury) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_treasury != address(0), "zero address");
+        treasury = _treasury;
     }
 
    // function updateRewardDuration(
@@ -147,9 +159,9 @@ contract StakingToken is Ownable, Pausable {
     function earned(uint256 _id, address _to) public view returns (uint256) {
         require(_id < packs.length, "Formation.Fi: no pack");
         return
-            (Math.max(packs[_id].minBoostingFactor, boostingRewardFactor(_to, _id)) *
+             boostingRewardFactor(_to, _id) *
                 (balances[_to].amount0 *
-                    (rewardPerToken(_id) - rewardPerTokenPaid[_id][_to]))) /
+                    (rewardPerToken(_id) - rewardPerTokenPaid[_id][_to])) /
             (COEFF_SCALE_DECIMALS * COEFF_SCALE_DECIMALS);
     }
 
@@ -231,12 +243,12 @@ contract StakingToken is Ownable, Pausable {
     }
 
     function exit(address _to) external {
+        claim(_to);
         unstake(
             balances[msg.sender].amount0,
             balances[msg.sender].amount1,
             _to
         );
-        claim(_to);
     }
 
   //  function supplyTokenReward(
@@ -255,18 +267,20 @@ contract StakingToken is Ownable, Pausable {
         address _to, 
         uint256 _id
     ) public view returns (uint256 _factor) {
-        uint256 _amount0 = balances[_to].amount0;
-        uint256 _amount1 = balances[_to].amount1;
-        Balance memory _ratio;
-        if (_amount1 != 0){
-        _ratio.amount0 = (_amount0 * COEFF_SCALE_DECIMALS) / _amount1;
-        }
-        _ratio.amount1 = (_amount1 * COEFF_SCALE_DECIMALS) / packs[_id].idealAmount;
-        uint256 _maxRatio = Math.max(_ratio.amount0, _ratio.amount1);
-        if (_maxRatio <= packs[_id].minRatio) {
-            _factor = _maxRatio;
+        Balance memory _balance  = balances[_to];
+        Pack memory _pack = packs[_id];
+        if ((_balance.amount0 == 0) || (_balance.amount1 == 0)){
+           _factor = 0;
         } else {
-            _factor = COEFF_SCALE_DECIMALS;
+            uint256 _ratio = (_balance.amount0 * COEFF_SCALE_DECIMALS) / _balance.amount1;
+            if ((_ratio <= _pack.idealRatio) || ( _balance.amount1 >= _pack.idealAmount)) {
+                _factor = COEFF_SCALE_DECIMALS;
+            } else {
+                _factor = (_balance.amount1 * COEFF_SCALE_DECIMALS) / _pack.idealAmount;
+                if (_balance.amount1 >= _pack.minAmount) {
+                    _factor = Math.max(_factor,  _pack.minBoostingFactor);
+                }
+            }    
         }
     }
 
@@ -274,7 +288,7 @@ contract StakingToken is Ownable, Pausable {
         uint256 _id,
         uint256 _reward,
         uint256 _rewardsDuration
-    ) external onlyOwner updateReward {
+    ) external onlyRole(MANAGER) updateReward {
         _rewardsDuration = Math.max(
             _rewardsDuration,
             packs[_id].rewardDuration
@@ -307,11 +321,11 @@ contract StakingToken is Ownable, Pausable {
         }
     }
 
-    function pause() public onlyOwner {
+    function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
     }
 
-    function unpause() public onlyOwner {
+    function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
 }

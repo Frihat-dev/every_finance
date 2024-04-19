@@ -23,7 +23,8 @@ describe("StakingToken", function () {
     const form = await Form.deploy(18);
 
     const StakingToken = await ethers.getContractFactory("StakingToken");
-    const stakingToken = await StakingToken.deploy(alpha.target, form.target, treasury.address);
+    const stakingToken = await StakingToken.deploy(alpha.target, form.target, owner.address, treasury.address);
+    await stakingToken.grantRole(await stakingToken.MANAGER(), owner.address);
 
     return {
       alpha, 
@@ -62,13 +63,14 @@ describe("StakingToken", function () {
       const minTotalSupply = 100; 
       const minRatio = ethers.parseUnits("0.15","ether");
       const idealAmount = ethers.parseUnits("10000","ether");
+      const minAmount = ethers.parseUnits("1000","ether");
       const minRatio2 = ethers.parseUnits("0.1","ether");
       const idealAmount2 = ethers.parseUnits("20000","ether");
 
      await stakingToken.connect(owner).addPack(form.target, ethers.parseUnits("1000000","ether"), rewardDuration, minBoostingFactor,
-     minBoostingFactor, minRatio, idealAmount); 
+     minBoostingFactor, minRatio, idealAmount, minAmount); 
      await stakingToken.connect(owner).addPack(form.target, ethers.parseUnits("1000000","ether"), rewardDuration, minBoostingFactor,
-     minBoostingFactor, minRatio2, idealAmount2); 
+     minBoostingFactor, minRatio2, idealAmount2, minAmount); 
     await stakingToken.connect(staker1).stake( ethers.parseUnits("1000","ether"), ethers.parseUnits("10000","ether"), staker1.address);
     await stakingToken.connect(staker1).unstake( ethers.parseUnits("500","ether"), ethers.parseUnits("500","ether"), staker1.address);
     await stakingToken.connect(staker1).claim(staker1.address);
