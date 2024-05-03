@@ -50,10 +50,15 @@ contract StakingToken is AccessControlEnumerable, Pausable {
     event RewardAdded(uint256 _id, uint256 _reward);
     event RewardsDurationUpdated(uint256 _id, uint256 _rewardsDuration);
 
-    constructor(address _token0, address _token1, address _admin, address _treasury) {
+    constructor(
+        address _token0,
+        address _token1,
+        address _admin,
+        address _treasury
+    ) {
         require(_token0 != address(0), "Formation.Fi: zero address");
         require(_token1 != address(0), "Formation.Fi: zero address");
-        require(_admin!= address(0), "Formation.Fi: zero address");
+        require(_admin != address(0), "Formation.Fi: zero address");
         require(_treasury != address(0), "Formation.Fi: zero address");
         token0 = _token0;
         token1 = _token1;
@@ -76,29 +81,31 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         }
     }
 
-    function setTotalSupply(Balance memory _totalSupply) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setTotalSupply(
+        Balance memory _totalSupply
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         totalSupply = _totalSupply;
     }
 
     function addPack(
         address _rewardToken,
-        uint256  _reward,
+        uint256 _reward,
         uint256 _rewardDuration,
         uint256 _minBoostingFactor,
-        uint256 _minTotalSupply, 
+        uint256 _minTotalSupply,
         uint256 _idealRatio,
         uint256 _idealAmount,
         uint256 _minAmount
     ) external onlyRole(MANAGER) {
         require(_reward != 0, "zero amount");
-        require(_idealRatio != 0 , "zero amount");
+        require(_idealRatio != 0, "zero amount");
         uint256 _rewardPerSecond = _reward / _rewardDuration;
         uint256 _periodFinish = block.timestamp + _rewardDuration;
         packs.push(
             Pack(
                 _rewardToken,
                 _reward,
-                _periodFinish ,
+                _periodFinish,
                 block.timestamp,
                 _rewardDuration,
                 _rewardPerSecond,
@@ -110,20 +117,57 @@ contract StakingToken is AccessControlEnumerable, Pausable {
                 _minAmount
             )
         );
-        AssetTransfer.transferFrom(msg.sender, treasury, _reward, IERC20(_rewardToken));
+        AssetTransfer.transferFrom(
+            msg.sender,
+            treasury,
+            _reward,
+            IERC20(_rewardToken)
+        );
     }
 
-    function setTreasury(address _treasury) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updatePack(
+        uint256 _id,
+        uint256 _rewardDuration,
+        uint256 _minBoostingFactor,
+        uint256 _minTotalSupply,
+        uint256 _idealRatio,
+        uint256 _idealAmount,
+        uint256 _minAmount
+    ) external onlyRole(MANAGER) {
+        require(_id < packs.length, "Formation.Fi: no pack");
+        require(
+            packs[_id].rewardPerTokenStored == 0,
+            "Formation.Fi: no update"
+        );
+        require(
+            packs[_id].lastUpdateTime < block.timestamp,
+            "Formation.Fi: out of time"
+        );
+        uint256 _rewardPerSecond = packs[_id].rewardTotal / _rewardDuration;
+        uint256 _periodFinish = packs[_id].lastUpdateTime + _rewardDuration;
+        packs[_id].rewardPerSecond = _rewardPerSecond;
+        packs[_id].periodFinish = _periodFinish;
+        packs[_id].rewardDuration = _rewardDuration;
+        packs[_id].minBoostingFactor = _minBoostingFactor;
+        packs[_id].minAmount = _minAmount;
+        packs[_id].idealRatio = _idealRatio;
+        packs[_id].idealAmount = _idealAmount;
+        packs[_id].minTotalSupply = _minTotalSupply;
+    }
+
+    function setTreasury(
+        address _treasury
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_treasury != address(0), "zero address");
         treasury = _treasury;
     }
 
-   // function updateRewardDuration(
+    // function updateRewardDuration(
     //    uint256 _id,
-     //   uint256 _rewardDuration
+    //   uint256 _rewardDuration
     //) external onlyOwner {
-       // require(_id < packs.length, "Formation.Fi: no pack");
-       // packs[_id].rewardDuration = _rewardDuration;
+    // require(_id < packs.length, "Formation.Fi: no pack");
+    // packs[_id].rewardDuration = _rewardDuration;
     //}
 
     function getTotalSupply() external view returns (Balance memory) {
@@ -159,9 +203,9 @@ contract StakingToken is AccessControlEnumerable, Pausable {
     function earned(uint256 _id, address _to) public view returns (uint256) {
         require(_id < packs.length, "Formation.Fi: no pack");
         return
-             boostingRewardFactor(_to, _id) *
+            (boostingRewardFactor(_to, _id) *
                 (balances[_to].amount0 *
-                    (rewardPerToken(_id) - rewardPerTokenPaid[_id][_to])) /
+                    (rewardPerToken(_id) - rewardPerTokenPaid[_id][_to]))) /
             (COEFF_SCALE_DECIMALS * COEFF_SCALE_DECIMALS);
     }
 
@@ -179,12 +223,22 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         if (_amount0 != 0) {
             totalSupply.amount0 += _amount0;
             balances[_to].amount0 += _amount0;
-            AssetTransfer.transferFrom(msg.sender, address(this), _amount0, IERC20(token0));
+            AssetTransfer.transferFrom(
+                msg.sender,
+                address(this),
+                _amount0,
+                IERC20(token0)
+            );
         }
         if (_amount1 != 0) {
             totalSupply.amount1 += _amount1;
             balances[_to].amount1 += _amount1;
-            AssetTransfer.transferFrom(msg.sender, address(this), _amount1,  IERC20(token1));
+            AssetTransfer.transferFrom(
+                msg.sender,
+                address(this),
+                _amount1,
+                IERC20(token1)
+            );
         }
         emit Staked(_amount0, _amount1, _to);
     }
@@ -236,7 +290,12 @@ contract StakingToken is AccessControlEnumerable, Pausable {
             _reward = rewards[i][msg.sender];
             if (_reward != 0) {
                 rewards[i][msg.sender] = 0;
-                AssetTransfer.transferFrom(treasury, _to, _reward,  IERC20(packs[i].rewardToken));
+                AssetTransfer.transferFrom(
+                    treasury,
+                    _to,
+                    _reward,
+                    IERC20(packs[i].rewardToken)
+                );
                 emit RewardPaid(packs[i].rewardToken, _reward, msg.sender);
             }
         }
@@ -251,36 +310,42 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         );
     }
 
-  //  function supplyTokenReward(
-   //     uint256 _id,
-   //     uint256 _amountToken
+    //  function supplyTokenReward(
+    //     uint256 _id,
+    //     uint256 _amountToken
     //) external onlyOwner {
-      //  packs[_id].rewardTotal += _amountToken;
-     //   IERC20(packs[_id].rewardToken).transferFrom(
-       //     msg.sender,
-         //   treasury,
-        //    _amountToken
-     //   );
-   // }
+    //  packs[_id].rewardTotal += _amountToken;
+    //   IERC20(packs[_id].rewardToken).transferFrom(
+    //     msg.sender,
+    //   treasury,
+    //    _amountToken
+    //   );
+    // }
 
     function boostingRewardFactor(
-        address _to, 
+        address _to,
         uint256 _id
     ) public view returns (uint256 _factor) {
-        Balance memory _balance  = balances[_to];
+        Balance memory _balance = balances[_to];
         Pack memory _pack = packs[_id];
-        if ((_balance.amount0 == 0) || (_balance.amount1 == 0)){
-           _factor = 0;
+        if ((_balance.amount0 == 0) || (_balance.amount1 == 0)) {
+            _factor = 0;
         } else {
-            uint256 _ratio = (_balance.amount0 * COEFF_SCALE_DECIMALS) / _balance.amount1;
-            if ((_ratio <= _pack.idealRatio) || ( _balance.amount1 >= _pack.idealAmount)) {
+            uint256 _ratio = (_balance.amount0 * COEFF_SCALE_DECIMALS) /
+                _balance.amount1;
+            if (
+                (_ratio <= _pack.idealRatio) ||
+                (_balance.amount1 >= _pack.idealAmount)
+            ) {
                 _factor = COEFF_SCALE_DECIMALS;
             } else {
-                _factor = (_balance.amount1 * COEFF_SCALE_DECIMALS) / _pack.idealAmount;
+                _factor =
+                    (_balance.amount1 * COEFF_SCALE_DECIMALS) /
+                    _pack.idealAmount;
                 if (_balance.amount1 >= _pack.minAmount) {
-                    _factor = Math.max(_factor,  _pack.minBoostingFactor);
+                    _factor = Math.max(_factor, _pack.minBoostingFactor);
                 }
-            }    
+            }
         }
     }
 
@@ -306,8 +371,13 @@ contract StakingToken is AccessControlEnumerable, Pausable {
                 _rewardsDuration;
 
             address _rewardToken = packs[_id].rewardToken;
-            if (_reward != 0){
-                AssetTransfer.transferFrom(msg.sender, treasury, _reward,  IERC20(_rewardToken));
+            if (_reward != 0) {
+                AssetTransfer.transferFrom(
+                    msg.sender,
+                    treasury,
+                    _reward,
+                    IERC20(_rewardToken)
+                );
             }
             uint256 _balance = IERC20(_rewardToken).balanceOf(treasury);
             require(
