@@ -459,10 +459,10 @@ describe("StakingParity", function () {
     minAmount, [minRatio, minRatio, minRatio], [idealAmount, idealAmount, idealAmount], [ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.15","ether"), ethers.parseUnits("0.45","ether")]); 
 
     await tokenParity.connect(owner).approve(stakingParity.target, 1);
-    await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), staker1.address);
+    await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), 2, staker1.address);
 
     console.log( await stakingParity.boostingRewardFactor(0, 1));
-    await stakingParity.connect(staker1).unstake(0, ethers.parseUnits("500","ether"), staker1.address);
+    await stakingParity.connect(staker1).unstake(1, ethers.parseUnits("500","ether"), 1 ,  staker1.address);
     await stakingParity.connect(staker1).claim(1, staker1.address);
     await stakingParity.connect(staker1).exit(1, staker1.address);
     await stakingParity.connect(owner).notifyRewardAmount(0, ethers.parseUnits("1000000","ether"), rewardDuration);

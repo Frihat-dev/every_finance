@@ -613,6 +613,15 @@ it("General case with rebalancing  ", async function () {
   await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
 
   const withdrawalAmount = await tokenParityStorage.withdrawalBalance();
   const rebalancingWithdrawalAmount = await tokenParityStorage.withdrawalRebalancingBalance();
@@ -622,7 +631,7 @@ it("General case with rebalancing  ", async function () {
   const depositBalancenew = await tokenParityStorage.depositBalance();
   await managementParity.connect(manager).startNextEvent();
 
-  await managementParity.connect(manager).depositManagerRequest([depositBalancenew[0], depositBalancenew[1], depositBalancenew[2]]);
+  await managementParity.connect(manager).depositManagerRequest([depositBalancenew[0] , depositBalancenew[1], depositBalancenew[2]]);
  
   await managementParity.connect(manager).withdrawManagerRequest([withdrawalAmount[0], withdrawalAmount[1], withdrawalAmount[2]], [rebalancingWithdrawalAmount[0], rebalancingWithdrawalAmount[1], rebalancingWithdrawalAmount[2]]);
 
@@ -646,14 +655,17 @@ it("General case with rebalancing  ", async function () {
  const totalRebalancingTokenAmount =  await  managementParity.totalRebalancingTokenAmount();
   
  const depositRebalancingBalance = await tokenParityStorage.depositRebalancingBalance();
- 
+ console.log("nnnnnn");
 
-
+  console.log(await managementParity.totalRebalancingTokenAmount());
+  console.log("nnnnnn");
 
  // await managementParity.connect(manager).startNextEvent();
   await  managementParity.connect(manager).withdrawStable(totalRebalancingTokenAmount[0] + totalRebalancingTokenAmount[1] + totalRebalancingTokenAmount[2], safeHouseParity.target, );
 
   await managementParity.connect(manager).rebalancingDepositManagerRequest([depositRebalancingBalance[0], depositRebalancingBalance[1], depositRebalancingBalance[2]]);
+
+
 
   //await investmentAlpha.connect(manager).startNextEvent();
   //await investmentAlpha.connect(manager).validateDeposits([3], totalRebalancingTokenAmount[0]);
@@ -666,10 +678,10 @@ it("General case with rebalancing  ", async function () {
   console.log(await managementParity.validatedRebalancingCashAmount());
   console.log(totalRebalancingTokenAmount);
 
-
-  await managementParity.connect(manager).distributeToken(0, [1, 2, 3, 4, 5, 6, 7]);
-  await managementParity.connect(manager).distributeToken(1, [1, 2, 3, 4, 5, 6, 7]);
-  await managementParity.connect(manager).distributeToken(2, [1, 2, 3, 4, 5, 6, 7]);
+  
+  await managementParity.connect(manager).distributeToken(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  await managementParity.connect(manager).distributeToken(1, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  await managementParity.connect(manager).distributeToken(2, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
 
 
@@ -698,6 +710,11 @@ it("General case with rebalancing  ", async function () {
   console.log(await tokenParityView.getTotalDepositRebalancingUntilLastEvent(1, 3, 0));
   console.log(await tokenParityView.getTotalDepositRebalancingUntilLastEvent(1, 3, 1));
   console.log(await tokenParityView.getTotalDepositRebalancingUntilLastEvent(1, 3, 2));
+  console.log(await managementParity.validatedRebalancingCashAmount());
+  console.log(await managementParity.totalRebalancingCashAmount());
+  console.log(await managementParity.validatedCashAmount());
+  console.log(await managementParity.totalCashAmount());
+
 
 
 

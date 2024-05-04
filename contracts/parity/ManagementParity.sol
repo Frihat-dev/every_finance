@@ -243,6 +243,14 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
     function rebalancingDepositManagerRequest(
         ParityData.Amount memory rebalancingDepositAmount_
     ) external onlyRole(MANAGER) {
+        
+        uint256  totalRebalancingTokenAmount_ = totalRebalancingTokenAmount.alpha +  totalRebalancingTokenAmount.beta + totalRebalancingTokenAmount.gamma;
+        uint256  totalRebalancingDepositAmount_ = rebalancingDepositAmount_.alpha +  rebalancingDepositAmount_.beta + rebalancingDepositAmount_.gamma;
+        require(totalRebalancingTokenAmount_ >=  totalRebalancingDepositAmount_, "max value" );
+       // rebalancingDepositAmount_.alpha = Math.min(totalRebalancingTokenAmount.alpha,  rebalancingDepositAmount_.alpha);
+    //rebalancingDepositAmount_.beta = Math.min(totalRebalancingTokenAmount.beta,  rebalancingDepositAmount_.beta);
+      //  rebalancingDepositAmount_.gamma = Math.min(totalRebalancingTokenAmount.gamma,  rebalancingDepositAmount_.gamma);
+
         TokenParityStorage(tokenParityStorage).updateTotalBalances(
             ParityData.Amount(0, 0, 0),
             ParityData.Amount(0, 0, 0),
@@ -250,6 +258,13 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             ParityData.Amount(0, 0, 0)
         );
         ParityMath.add(totalRebalancingCashAmount, rebalancingDepositAmount_);
+       //ParityMath.sub(totalRebalancingTokenAmount, rebalancingDepositAmount_);
+       uint256 deltaAlpha_ = Math.min(totalRebalancingTokenAmount.alpha, totalRebalancingDepositAmount_);
+       totalRebalancingTokenAmount.alpha -= deltaAlpha_;
+       uint256 deltaBeta_ = Math.min(totalRebalancingTokenAmount.beta, totalRebalancingDepositAmount_ - deltaAlpha_);
+       totalRebalancingTokenAmount.beta -= deltaBeta_;
+       uint256 deltaGamma_ = Math.min(totalRebalancingTokenAmount.gamma, totalRebalancingDepositAmount_ - deltaAlpha_ - deltaBeta_);
+       totalRebalancingTokenAmount.gamma -= deltaGamma_;
         _deposit(rebalancingDepositAmount_);
     }
 
@@ -388,11 +403,14 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                     .totalRebalancingCashAmount;
                 validatedRebalancingCashAmount.alpha = _dataOut
                     .validatedRebalancingCashAmount;
+
+                delete _dataOut;
             }
+
             //_totalCashAmount = Math.mulDiv(totalWithdrawalAmount.alpha, totalCashAmount.alpha, (totalWithdrawalAmount.alpha + totalRebalancingWithdrawalAmount.alpha));
             if (
-                (totalTokenAmount.alpha != 0) ||
-                (totalRebalancingTokenAmount.alpha) != 0
+                (totalWithdrawalAmount.alpha != 0) ||
+                (totalRebalancingWithdrawalAmount.alpha) != 0
             )
                 _dataOut = _distributeWithdrawalToken(
                     _id,
@@ -414,8 +432,8 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             validatedRebalancingWithdrawalAmount.alpha = _dataOut
                 .validatedRebalancingCashAmount;
             totalTokenAmount.alpha = _dataOut.totalTokenAmount;
-            totalRebalancingTokenAmount.alpha = _dataOut
-                .totalRebalancingTokenAmount;
+            // totalRebalancingTokenAmount.alpha = _dataOut
+            //    .totalRebalancingTokenAmount;
         } else if (_id == 1) {
             if (
                 _amount != 0 &&
@@ -450,12 +468,13 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                     .totalRebalancingCashAmount;
                 validatedRebalancingCashAmount.beta = _dataOut
                     .validatedRebalancingCashAmount;
+                delete _dataOut;
             }
 
             // _totalCashAmount = Math.mulDiv(totalWithdrawalAmount.beta, totalTokenAmount.beta, (totalWithdrawalAmount.beta + totalRebalancingWithdrawalAmount.beta));
             if (
-                (totalTokenAmount.beta != 0) ||
-                (totalRebalancingTokenAmount.beta) != 0
+                (totalWithdrawalAmount.beta != 0) ||
+                (totalRebalancingWithdrawalAmount.beta) != 0
             ) {
                 _dataOut = _distributeWithdrawalToken(
                     _id,
@@ -477,8 +496,8 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                 validatedRebalancingWithdrawalAmount.beta = _dataOut
                     .validatedRebalancingCashAmount;
                 totalTokenAmount.beta = _dataOut.totalTokenAmount;
-                totalRebalancingTokenAmount.beta = _dataOut
-                    .totalRebalancingTokenAmount;
+                //totalRebalancingTokenAmount.beta = _dataOut
+                //  .totalRebalancingTokenAmount;
             }
         } else {
             if (
@@ -514,12 +533,13 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                     .totalRebalancingCashAmount;
                 validatedRebalancingCashAmount.gamma = _dataOut
                     .validatedRebalancingCashAmount;
+                delete _dataOut;
             }
 
             // _totalCashAmount = Math.mulDiv(totalWithdrawalAmount.gamma, totalCashAmount.gamma, (totalWithdrawalAmount.gamma + totalRebalancingWithdrawalAmount.gamma));
             if (
-                (totalTokenAmount.gamma != 0) ||
-                (totalRebalancingTokenAmount.gamma) != 0
+                (totalWithdrawalAmount.gamma != 0) ||
+                (totalRebalancingWithdrawalAmount.gamma) != 0
             ) {
                 _dataOut = _distributeWithdrawalToken(
                     _id,
@@ -541,8 +561,8 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                 validatedRebalancingWithdrawalAmount.gamma = _dataOut
                     .validatedRebalancingCashAmount;
                 totalTokenAmount.gamma = _dataOut.totalTokenAmount;
-                totalRebalancingTokenAmount.gamma = _dataOut
-                    .totalRebalancingTokenAmount;
+                //totalRebalancingTokenAmount.gamma = _dataOut
+                //    .totalRebalancingTokenAmount;
             }
         }
     }
@@ -557,6 +577,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         uint256 _tokenAmount;
         uint256 __totalTokenAmount;
         uint256 __totalRebalancingCashAmount;
+        uint256 __totalRebalancingTokenAmount;
         for (uint256 i = 0; i < _tokenIds.length; ++i) {
             if (IERC721(tokenParity).ownerOf(_tokenIds[i]) == address(0)) {
                 continue;
@@ -578,10 +599,20 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _dataIn.totalCashAmount
                     )
                 );
+
+                _cashAmount = Math.min(
+                    _cashAmount,
+                    _dataIn.validatedCashAmount - __totalCashAmount
+                );
                 _tokenAmount = Math.mulDiv(
                     _cashAmount,
                     _dataIn.totalTokenAmount,
                     _dataIn.validatedCashAmount
+                );
+
+                _tokenAmount = Math.min(
+                    _tokenAmount,
+                    _dataIn.totalTokenAmount - __totalTokenAmount
                 );
                 __totalCashAmount += _cashAmount;
                 __totalTokenAmount += _tokenAmount;
@@ -622,10 +653,23 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _dataIn.totalRebalancingCashAmount
                     )
                 );
+
+                _cashAmount = Math.min(
+                    _cashAmount,
+                    _dataIn.validatedRebalancingCashAmount -
+                        __totalRebalancingCashAmount
+                );
+
                 _tokenAmount = Math.mulDiv(
                     _cashAmount,
                     _dataIn.totalRebalancingTokenAmount,
                     _dataIn.validatedRebalancingCashAmount
+                );
+
+                _tokenAmount = Math.min(
+                    _tokenAmount,
+                    _dataIn.totalRebalancingTokenAmount -
+                        __totalRebalancingTokenAmount
                 );
                 TokenParityStorage(tokenParityStorage)
                     .updateRebalancingDepositBalancePerToken(
@@ -635,7 +679,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _id
                     );
                 __totalRebalancingCashAmount += _cashAmount;
-                __totalTokenAmount += _tokenAmount;
+                __totalRebalancingTokenAmount += _tokenAmount;
                 if (_tokenAmount != 0) {
                     TokenParityStorage(tokenParityStorage)
                         .updateTokenBalancePerToken(
@@ -656,8 +700,11 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         _dataOut.validatedRebalancingCashAmount =
             _dataIn.validatedRebalancingCashAmount -
             __totalRebalancingCashAmount;
-        if (__totalTokenAmount != 0) {
-            IERC20(getToken(_id)).safeTransfer(safeHouse, __totalTokenAmount);
+        if ((__totalTokenAmount + __totalRebalancingTokenAmount) != 0) {
+            IERC20(getToken(_id)).safeTransfer(
+                safeHouse,
+                __totalTokenAmount + __totalRebalancingTokenAmount
+            );
         }
     }
 
@@ -669,7 +716,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         uint256 _withdrawalAmount;
         uint256 _cashAmount;
         uint256 __totalCashAmount;
-        uint256 __totalRebalancingCashAmount;
+        // uint256 __totalRebalancingCashAmount;
         uint256 __totalWithdrawalAmount;
         uint256 __totalRebalancingWithdrawalAmount;
 
@@ -696,11 +743,22 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _dataIn.totalCashAmount
                     )
                 );
+
+                _withdrawalAmount = Math.min(
+                    _withdrawalAmount,
+                    _dataIn.validatedCashAmount - __totalWithdrawalAmount
+                );
                 _cashAmount = Math.mulDiv(
                     _withdrawalAmount,
                     _dataIn.totalTokenAmount,
                     _dataIn.validatedCashAmount
                 );
+
+                _cashAmount = Math.min(
+                    _cashAmount,
+                    _dataIn.totalTokenAmount - __totalCashAmount
+                );
+
                 TokenParityStorage(tokenParityStorage)
                     .updateWithdrawalBalancePerToken(
                         _tokenIds[i],
@@ -733,11 +791,22 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _dataIn.totalRebalancingCashAmount
                     )
                 );
-                _cashAmount = Math.mulDiv(
+                _withdrawalAmount = Math.min(
                     _withdrawalAmount,
-                    _dataIn.totalRebalancingTokenAmount,
-                    _dataIn.validatedRebalancingCashAmount
+                    _dataIn.validatedRebalancingCashAmount -
+                        __totalRebalancingWithdrawalAmount
                 );
+                // _cashAmount = Math.mulDiv(
+                //   _withdrawalAmount,
+                //  _dataIn.totalRebalancingTokenAmount,
+                //  _dataIn.validatedRebalancingCashAmount
+                // );
+
+                // _cashAmount = Math.min(
+                //   _cashAmount,
+                //  _dataIn.totalRebalancingTokenAmount -
+                //    __totalRebalancingCashAmount
+                //);
                 TokenParityStorage(tokenParityStorage)
                     .updateRebalancingWithdrawalBalancePerToken(
                         _tokenIds[i],
@@ -746,7 +815,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _id
                     );
                 __totalRebalancingWithdrawalAmount += _withdrawalAmount;
-                __totalRebalancingCashAmount += _cashAmount;
+                // __totalRebalancingCashAmount += _cashAmount;
             }
         }
         _dataOut.totalCashAmount =
@@ -764,8 +833,9 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         _dataOut.totalTokenAmount =
             _dataIn.totalTokenAmount -
             __totalCashAmount;
-        _dataOut.totalRebalancingTokenAmount = _dataIn
-            .totalRebalancingTokenAmount;
+        // _dataOut.totalRebalancingTokenAmount =
+        //   _dataIn.totalRebalancingTokenAmount -
+        //  __totalRebalancingCashAmount;
         // _dataOut.totalRebalancingTokenAmount = _dataIn.totalRebalancingTokenAmount - __totalRebalancingCashAmount;
     }
 
@@ -845,80 +915,159 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             "Every.finance: zero amount"
         );
         uint256 _totalAmount;
+        uint256 _amount;
+        uint256 _rebalancingAmount;
+        uint256 _totalWithdrawalAmount;
+        uint256 _totalRebalancingWithdrawalAmount;
+        uint256 _validatedWithdrawalAmount;
+        uint256 _validatedRebalancingWithdrawalAmount;
+
         if (_id == 0) {
             require(msg.sender == investmentAlpha, "Every.finance: no caller");
+            _totalWithdrawalAmount = totalWithdrawalAmount.alpha;
+            _totalRebalancingWithdrawalAmount = totalRebalancingWithdrawalAmount
+                .alpha;
+            _validatedWithdrawalAmount = validatedWithdrawalAmount.alpha;
+            _validatedRebalancingWithdrawalAmount = validatedRebalancingWithdrawalAmount
+                .alpha;
             _totalAmount =
-                totalWithdrawalAmount.alpha +
-                totalRebalancingWithdrawalAmount.alpha;
-            validatedWithdrawalAmount.alpha += Math.mulDiv(
-                _amountValidated,
-                totalWithdrawalAmount.alpha,
-                _totalAmount
+                _totalWithdrawalAmount +
+                _totalRebalancingWithdrawalAmount;
+
+            _amount = Math.min(
+                (_totalWithdrawalAmount - _validatedWithdrawalAmount),
+                Math.mulDiv(
+                    _amountValidated,
+                    totalWithdrawalAmount.alpha,
+                    _totalAmount
+                )
             );
-            validatedRebalancingWithdrawalAmount.alpha += Math.mulDiv(
-                _amountValidated,
-                totalRebalancingWithdrawalAmount.alpha,
-                _totalAmount
+
+            _rebalancingAmount = Math.min(
+                (_totalRebalancingWithdrawalAmount -
+                    _validatedRebalancingWithdrawalAmount),
+                Math.mulDiv(
+                    _amountValidated,
+                    totalRebalancingWithdrawalAmount.alpha,
+                    _totalAmount
+                )
             );
+
+            validatedWithdrawalAmount.alpha =
+                _validatedWithdrawalAmount +
+                _amount;
+
+            validatedRebalancingWithdrawalAmount.alpha =
+                _validatedRebalancingWithdrawalAmount +
+                _rebalancingAmount;
+
             totalTokenAmount.alpha += Math.mulDiv(
                 _amountMinted,
-                totalWithdrawalAmount.alpha,
-                _totalAmount
+                _amount,
+                (_amount + _rebalancingAmount)
             );
             totalRebalancingTokenAmount.alpha += Math.mulDiv(
                 _amountMinted,
-                totalRebalancingWithdrawalAmount.alpha,
-                _totalAmount
+                _rebalancingAmount,
+                (_amount + _rebalancingAmount)
             );
         } else if (_id == 1) {
             require(msg.sender == investmentBeta, "Every.finance: no caller");
+            _totalWithdrawalAmount = totalWithdrawalAmount.beta;
+            _totalRebalancingWithdrawalAmount = totalRebalancingWithdrawalAmount
+                .beta;
+            _validatedWithdrawalAmount = validatedWithdrawalAmount.beta;
+            _validatedRebalancingWithdrawalAmount = validatedRebalancingWithdrawalAmount
+                .beta;
             _totalAmount =
-                totalWithdrawalAmount.beta +
-                totalRebalancingWithdrawalAmount.beta;
-            validatedWithdrawalAmount.beta += Math.mulDiv(
-                _amountValidated,
-                totalWithdrawalAmount.beta,
-                _totalAmount
+                _totalWithdrawalAmount +
+                _totalRebalancingWithdrawalAmount;
+
+            _amount = Math.min(
+                (_totalWithdrawalAmount - _validatedWithdrawalAmount),
+                Math.mulDiv(
+                    _amountValidated,
+                    totalWithdrawalAmount.beta,
+                    _totalAmount
+                )
             );
-            validatedRebalancingWithdrawalAmount.beta += Math.mulDiv(
-                _amountValidated,
-                totalRebalancingWithdrawalAmount.beta,
-                _totalAmount
+
+            _rebalancingAmount = Math.min(
+                (_totalRebalancingWithdrawalAmount -
+                    _validatedRebalancingWithdrawalAmount),
+                Math.mulDiv(
+                    _amountValidated,
+                    totalRebalancingWithdrawalAmount.beta,
+                    _totalAmount
+                )
             );
+
+            validatedWithdrawalAmount.beta =
+                _validatedWithdrawalAmount +
+                _amount;
+
+            validatedRebalancingWithdrawalAmount.beta =
+                _validatedRebalancingWithdrawalAmount +
+                _rebalancingAmount;
+
             totalTokenAmount.beta += Math.mulDiv(
                 _amountMinted,
-                totalWithdrawalAmount.beta,
-                _totalAmount
+                _amount,
+                (_amount + _rebalancingAmount)
             );
             totalRebalancingTokenAmount.beta += Math.mulDiv(
                 _amountMinted,
-                totalRebalancingWithdrawalAmount.beta,
-                _totalAmount
+                _rebalancingAmount,
+                (_amount + _rebalancingAmount)
             );
         } else {
             require(msg.sender == investmentGamma, "Every.finance: no caller");
+            _totalWithdrawalAmount = totalWithdrawalAmount.gamma;
+            _totalRebalancingWithdrawalAmount = totalRebalancingWithdrawalAmount
+                .gamma;
+            _validatedWithdrawalAmount = validatedWithdrawalAmount.gamma;
+            _validatedRebalancingWithdrawalAmount = validatedRebalancingWithdrawalAmount
+                .gamma;
             _totalAmount =
-                totalWithdrawalAmount.gamma +
-                totalRebalancingWithdrawalAmount.gamma;
-            validatedWithdrawalAmount.gamma += Math.mulDiv(
-                _amountValidated,
-                totalWithdrawalAmount.gamma,
-                _totalAmount
+                _totalWithdrawalAmount +
+                _totalRebalancingWithdrawalAmount;
+
+            _amount = Math.min(
+                (_totalWithdrawalAmount - _validatedWithdrawalAmount),
+                Math.mulDiv(
+                    _amountValidated,
+                    totalWithdrawalAmount.gamma,
+                    _totalAmount
+                )
             );
-            validatedRebalancingWithdrawalAmount.gamma += Math.mulDiv(
-                _amountValidated,
-                totalRebalancingWithdrawalAmount.gamma,
-                _totalAmount
+
+            _rebalancingAmount = Math.min(
+                (_totalRebalancingWithdrawalAmount -
+                    _validatedRebalancingWithdrawalAmount),
+                Math.mulDiv(
+                    _amountValidated,
+                    totalRebalancingWithdrawalAmount.gamma,
+                    _totalAmount
+                )
             );
+
+            validatedWithdrawalAmount.gamma =
+                _validatedWithdrawalAmount +
+                _amount;
+
+            validatedRebalancingWithdrawalAmount.gamma =
+                _validatedRebalancingWithdrawalAmount +
+                _rebalancingAmount;
+
             totalTokenAmount.gamma += Math.mulDiv(
                 _amountMinted,
-                totalWithdrawalAmount.gamma,
-                _totalAmount
+                _amount,
+                (_amount + _rebalancingAmount)
             );
             totalRebalancingTokenAmount.gamma += Math.mulDiv(
                 _amountMinted,
-                totalRebalancingWithdrawalAmount.gamma,
-                _totalAmount
+                _rebalancingAmount,
+                (_amount + _rebalancingAmount)
             );
         }
     }
