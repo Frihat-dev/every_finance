@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "./TokenParity.sol";
 import "./TokenParityView.sol";
 import "./ParityLine.sol";
+import "./IStakingParity.sol";
 
 /**
  * @author Every.finance.
@@ -24,13 +25,16 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
     }
     uint256 public tokenId;
     Risk public risk;
+    bool public isStakingParity;
     address public managementParity;
     address public parityLine;
+    address public stakingParity;
 
     event DepositRequest(ParityData.Position _position);
     event WithdrawalRequest(uint256 _tokenId, uint256 _rate);
     event CancelWithdrawalRequest(uint256 _tokenId);
-    event RebalanceRequest(ParityData.Position _position);
+    event SubmitRebalancingRequest(ParityData.Position _position);
+    event ValidateRebalancingRequest(ParityData.Position _position);
     event SetDefaultRisk(uint256 _low, uint256 _medium, uint256 _high);
 
     constructor(
@@ -62,6 +66,19 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_parityLine != address(0), "Every.finance: zero address");
         parityLine = _parityLine;
+    }
+
+    function setStakingParity(
+        address _stakingParity
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_stakingParity != address(0), "Every.finance: zero address");
+        stakingParity = _stakingParity;
+    }
+
+    function setIsStakingParity(
+        bool _isStakingParity
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isStakingParity = _isStakingParity;
     }
 
     function setDefaultRisk(
@@ -167,12 +184,34 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
         uint256 _indexEvent = IManagementParity(managementParity).indexEvent();
         _position.amount = _sendFees(_position.amount, msg.sender);
         bool _isFirst;
+        address _tokenParity = IManagementParity(managementParity)
+            .tokenParity();
         if (_position.tokenId == 0) {
             tokenId = tokenId + 1;
             _position.tokenId = tokenId;
             _isFirst = true;
+        } else {
+            if (!isStakingParity) {
+                require(
+                    (_account == msg.sender) &&
+                        (TokenParity(_tokenParity).ownerOf(_position.tokenId) ==
+                            msg.sender),
+                    "no owner"
+                );
+            } else {
+                require(
+                    (_account == msg.sender) &&
+                        ((TokenParity(_tokenParity).ownerOf(
+                            _position.tokenId
+                        ) == msg.sender) ||
+                            (IStakingParity(stakingParity).holders(
+                                _position.tokenId
+                            ) == msg.sender)),
+                    "no owner"
+                );
+            }
         }
-        TokenParity(IManagementParity(managementParity).tokenParity()).mint(
+        TokenParity(_tokenParity).mint(
             _account,
             _position,
             _indexEvent,
@@ -235,12 +274,24 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
     function rebalanceRequest(
         ParityData.Position memory _position
     ) external whenNotPaused {
-        require(
-            msg.sender ==
-                TokenParity(IManagementParity(managementParity).tokenParity())
-                    .ownerOf(_position.tokenId),
-            "Every.finance: no owner"
-        );
+        address _tokenParity = IManagementParity(managementParity)
+            .tokenParity();
+
+        if (!isStakingParity) {
+            require(
+                (TokenParity(_tokenParity).ownerOf(_position.tokenId) ==
+                    msg.sender),
+                "no owner"
+            );
+        } else {
+            require(
+                (TokenParity(_tokenParity).ownerOf(_position.tokenId) ==
+                    msg.sender) ||
+                    (IStakingParity(stakingParity).holders(_position.tokenId) ==
+                        msg.sender),
+                "no owner"
+            );
+        }
         _position.amount = _sendFees(_position.amount, msg.sender);
         (
             address _stableToken,
@@ -253,7 +304,7 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
                 _position.amount / _amountScaleDecimals
             );
         }
-        _rebalanceRequest(_position, false);
+        _rebalanceRequest(_position, false, true);
     }
 
     function rebalanceManagerRequest(
@@ -261,6 +312,7 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
     ) external onlyRole(MANAGER) {
         ParityData.Amount memory _weights;
         ParityData.Position memory _position;
+        IStakingParity(stakingParity)._updateReward();
         for (uint256 i = 0; i < _tokenIds.length; ++i) {
             if (
                 TokenParity(IManagementParity(managementParity).tokenParity())
@@ -268,6 +320,7 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
             ) {
                 break;
             }
+            IStakingParity(stakingParity)._updateReward(_tokenIds[i]);
             _position.tokenId = _tokenIds[i];
             _position.amount = 0;
             (
@@ -287,7 +340,35 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
             _position.userReturn = TokenParityStorage(
                 IManagementParity(managementParity).tokenParityStorage()
             ).returnPerToken(_tokenIds[i]);
-            _rebalanceRequest(_position, true);
+            _rebalanceRequest(_position, true, false);
+        }
+    }
+
+    function validateRebalancingRequest(
+        uint256[] memory _tokenIds
+    ) external onlyRole(MANAGER) {
+        // ParityData.Amount memory _weights;
+        ParityData.Position memory _position;
+        address _tokenParityStorage = IManagementParity(managementParity)
+            .tokenParityStorage();
+        IStakingParity(stakingParity)._updateReward();
+        for (uint256 i = 0; i < _tokenIds.length; ++i) {
+            if (
+                TokenParity(IManagementParity(managementParity).tokenParity())
+                    .ownerOf(_tokenIds[i]) == address(0)
+            ) {
+                break;
+            }
+            require(
+                TokenParityStorage(_tokenParityStorage).tokenIdsToRebalance(
+                    _tokenIds[i]
+                ),
+                "no Rebalancing Request"
+            );
+            IStakingParity(stakingParity)._updateReward(_tokenIds[i]);
+            _position = TokenParityStorage(_tokenParityStorage)
+                .getRebalancingRequest(_tokenIds[i]);
+            _rebalanceRequest(_position, true, false);
         }
     }
 
@@ -401,7 +482,8 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
 
     function _rebalanceRequest(
         ParityData.Position memory _position,
-        bool _isFree
+        bool _isFree,
+        bool _isRequest
     ) internal {
         require(
             (_position.userOption >= 1) && (_position.userOption <= 3),
@@ -441,13 +523,25 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
                     _position.userWeights.gamma
                 );
         }
-        uint256[3] memory _price = IManagementParity(managementParity)
-            .getPrice();
-        uint256 _indexEvent = IManagementParity(managementParity).indexEvent();
-        TokenParityStorage(
-            IManagementParity(managementParity).tokenParityStorage()
-        ).rebalanceParityPosition(_position, _indexEvent, _price, _isFree);
-        emit RebalanceRequest(_position);
+        address _tokenParityStorage = IManagementParity(managementParity)
+            .tokenParityStorage();
+        if (_isRequest) {
+            TokenParityStorage(_tokenParityStorage)
+                .submitRebalancingParityPositionRequest(_position);
+            emit SubmitRebalancingRequest(_position);
+        } else {
+            uint256[3] memory _price = IManagementParity(managementParity)
+                .getPrice();
+            uint256 _indexEvent = IManagementParity(managementParity)
+                .indexEvent();
+            TokenParityStorage(_tokenParityStorage).rebalanceParityPosition(
+                _position,
+                _indexEvent,
+                _price,
+                _isFree
+            );
+            emit ValidateRebalancingRequest(_position);
+        }
     }
 
     function _sendFees(

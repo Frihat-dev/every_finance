@@ -12,6 +12,7 @@ import "./ManagementParityParams.sol";
 import "./TokenParityStorage.sol";
 import "./TokenParityView.sol";
 import "./ISafeHouse.sol";
+import "./IStakingParity.sol";
 
 /** 
 * @author Every.finance.
@@ -46,6 +47,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
 
     uint256 public amountScaleDecimals;
     uint256 public indexEvent;
+    bool public isStakingParity;
     address payable public investmentAlpha;
     address payable public investmentBeta;
     address payable public investmentGamma;
@@ -53,6 +55,11 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
     address public tokenParityStorage;
     address public tokenParity;
     address public tokenParityView;
+    address public stakingParity;
+    ParityData.Amount public depositBalance;
+    ParityData.Amount public withdrawalBalance;
+    ParityData.Amount public withdrawalRebalancingBalance;
+    ParityData.Amount public depositRebalancingBalance;
     ParityData.Amount public totalCashAmount;
     ParityData.Amount public validatedCashAmount;
     ParityData.Amount public totalRebalancingCashAmount;
@@ -119,6 +126,19 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
 
     function getStableToken() public view returns (address, uint256) {
         return (address(stableToken), amountScaleDecimals);
+    }
+
+    function setStakingParity(
+        address _stakingParity
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_stakingParity != address(0), "Every.finance: zero address");
+        stakingParity = _stakingParity;
+    }
+
+    function setIsStakingParity(
+        bool _isStakingParity
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        isStakingParity = _isStakingParity;
     }
 
     function getPrice() public view returns (uint256[3] memory _price) {
@@ -225,6 +245,13 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
 
     function startNextEvent() external onlyRole(MANAGER) {
         indexEvent += 1;
+        (depositBalance.alpha, depositBalance.beta, depositBalance.gamma) = TokenParityStorage(tokenParityStorage).depositBalance();
+        (withdrawalBalance.alpha, withdrawalBalance.beta, withdrawalBalance.gamma) = TokenParityStorage(tokenParityStorage)
+            .withdrawalBalance();
+        (depositRebalancingBalance.alpha, depositRebalancingBalance.beta, depositRebalancingBalance.gamma) = TokenParityStorage(tokenParityStorage)
+            .depositRebalancingBalance();
+        (withdrawalRebalancingBalance.alpha, withdrawalRebalancingBalance.beta, withdrawalRebalancingBalance.gamma)  = TokenParityStorage(tokenParityStorage)
+            .withdrawalRebalancingBalance();
     }
 
     function depositManagerRequest(
@@ -237,19 +264,28 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             ParityData.Amount(0, 0, 0)
         );
         ParityMath.add(totalCashAmount, depositAmount_);
+        ParityMath.sub(depositBalance, depositAmount_);
         _deposit(depositAmount_);
     }
 
     function rebalancingDepositManagerRequest(
         ParityData.Amount memory rebalancingDepositAmount_
     ) external onlyRole(MANAGER) {
-        
-        uint256  totalRebalancingTokenAmount_ = totalRebalancingTokenAmount.alpha +  totalRebalancingTokenAmount.beta + totalRebalancingTokenAmount.gamma;
-        uint256  totalRebalancingDepositAmount_ = rebalancingDepositAmount_.alpha +  rebalancingDepositAmount_.beta + rebalancingDepositAmount_.gamma;
-        require(totalRebalancingTokenAmount_ >=  totalRebalancingDepositAmount_, "max value" );
-       // rebalancingDepositAmount_.alpha = Math.min(totalRebalancingTokenAmount.alpha,  rebalancingDepositAmount_.alpha);
-    //rebalancingDepositAmount_.beta = Math.min(totalRebalancingTokenAmount.beta,  rebalancingDepositAmount_.beta);
-      //  rebalancingDepositAmount_.gamma = Math.min(totalRebalancingTokenAmount.gamma,  rebalancingDepositAmount_.gamma);
+        uint256 totalRebalancingTokenAmount_ = totalRebalancingTokenAmount
+            .alpha +
+            totalRebalancingTokenAmount.beta +
+            totalRebalancingTokenAmount.gamma;
+        uint256 totalRebalancingDepositAmount_ = rebalancingDepositAmount_
+            .alpha +
+            rebalancingDepositAmount_.beta +
+            rebalancingDepositAmount_.gamma;
+        require(
+            totalRebalancingTokenAmount_ >= totalRebalancingDepositAmount_,
+            "max value"
+        );
+        // rebalancingDepositAmount_.alpha = Math.min(totalRebalancingTokenAmount.alpha,  rebalancingDepositAmount_.alpha);
+        //rebalancingDepositAmount_.beta = Math.min(totalRebalancingTokenAmount.beta,  rebalancingDepositAmount_.beta);
+        //  rebalancingDepositAmount_.gamma = Math.min(totalRebalancingTokenAmount.gamma,  rebalancingDepositAmount_.gamma);
 
         TokenParityStorage(tokenParityStorage).updateTotalBalances(
             ParityData.Amount(0, 0, 0),
@@ -258,13 +294,23 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             ParityData.Amount(0, 0, 0)
         );
         ParityMath.add(totalRebalancingCashAmount, rebalancingDepositAmount_);
-       //ParityMath.sub(totalRebalancingTokenAmount, rebalancingDepositAmount_);
-       uint256 deltaAlpha_ = Math.min(totalRebalancingTokenAmount.alpha, totalRebalancingDepositAmount_);
-       totalRebalancingTokenAmount.alpha -= deltaAlpha_;
-       uint256 deltaBeta_ = Math.min(totalRebalancingTokenAmount.beta, totalRebalancingDepositAmount_ - deltaAlpha_);
-       totalRebalancingTokenAmount.beta -= deltaBeta_;
-       uint256 deltaGamma_ = Math.min(totalRebalancingTokenAmount.gamma, totalRebalancingDepositAmount_ - deltaAlpha_ - deltaBeta_);
-       totalRebalancingTokenAmount.gamma -= deltaGamma_;
+        ParityMath.sub(depositRebalancingBalance, rebalancingDepositAmount_);
+        //ParityMath.sub(totalRebalancingTokenAmount, rebalancingDepositAmount_);
+        uint256 deltaAlpha_ = Math.min(
+            totalRebalancingTokenAmount.alpha,
+            totalRebalancingDepositAmount_
+        );
+        totalRebalancingTokenAmount.alpha -= deltaAlpha_;
+        uint256 deltaBeta_ = Math.min(
+            totalRebalancingTokenAmount.beta,
+            totalRebalancingDepositAmount_ - deltaAlpha_
+        );
+        totalRebalancingTokenAmount.beta -= deltaBeta_;
+        uint256 deltaGamma_ = Math.min(
+            totalRebalancingTokenAmount.gamma,
+            totalRebalancingDepositAmount_ - deltaAlpha_ - deltaBeta_
+        );
+        totalRebalancingTokenAmount.gamma -= deltaGamma_;
         _deposit(rebalancingDepositAmount_);
     }
 
@@ -287,6 +333,11 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             totalRebalancingWithdrawalAmount,
             rebalancingWithdrawalAmount_
         );
+        ParityMath.sub(withdrawalBalance, withdrawalAmount_);
+        ParityMath.sub(
+            withdrawalRebalancingBalance,
+            rebalancingWithdrawalAmount_
+        );
 
         _withdraw(amount_);
     }
@@ -295,6 +346,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         uint256 _id,
         uint256[] memory _tokenIds
     ) external onlyRole(MANAGER) {
+        IStakingParity(stakingParity)._updateReward();
         _distributeTokens(_id, _tokenIds);
     }
 
@@ -624,6 +676,15 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         _id
                     );
                 if (_tokenAmount != 0) {
+                    if (
+                        isStakingParity &&
+                        IStakingParity(stakingParity).holders(_tokenIds[i]) !=
+                        address(0)
+                    ) {
+                        IStakingParity(stakingParity)._updateReward(
+                            _tokenIds[i]
+                        );
+                    }
                     TokenParityStorage(tokenParityStorage)
                         .updateTokenBalancePerToken(
                             _tokenIds[i],
@@ -681,6 +742,15 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                 __totalRebalancingCashAmount += _cashAmount;
                 __totalRebalancingTokenAmount += _tokenAmount;
                 if (_tokenAmount != 0) {
+                    if (
+                        isStakingParity &&
+                        IStakingParity(stakingParity).holders(_tokenIds[i]) !=
+                        address(0)
+                    ) {
+                        IStakingParity(stakingParity)._updateReward(
+                            _tokenIds[i]
+                        );
+                    }
                     TokenParityStorage(tokenParityStorage)
                         .updateTokenBalancePerToken(
                             _tokenIds[i],

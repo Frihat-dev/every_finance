@@ -424,9 +424,15 @@ library ParityLogic {
             _price[2];
         if (_totalTokenValue > 0) {
             uint256[3] memory _scaledPrice;
-            _scaledPrice[0] = _price[0] * ParityData.COEFF_SCALE_DECIMALS;
-            _scaledPrice[1] = _price[1] * ParityData.COEFF_SCALE_DECIMALS;
-            _scaledPrice[2] = _price[2] * ParityData.COEFF_SCALE_DECIMALS;
+            _scaledPrice[0] =
+                (_price[0] * ParityData.COEFF_SCALE_DECIMALS) /
+                ParityData.FACTOR_PRICE_DECIMALS;
+            _scaledPrice[1] =
+                (_price[1] * ParityData.COEFF_SCALE_DECIMALS) /
+                ParityData.FACTOR_PRICE_DECIMALS;
+            _scaledPrice[2] =
+                (_price[2] * ParityData.COEFF_SCALE_DECIMALS) /
+                ParityData.FACTOR_PRICE_DECIMALS;
             _weights = ParityMath.mulMultiCoefDiv2(
                 _tokenBalancePerToken,
                 _scaledPrice,
@@ -461,26 +467,29 @@ library ParityLogic {
         uint256 _tokenTime,
         ParityData.Fee[] memory _fee
     ) internal view returns (uint256 _feeRate) {
-        uint256 _time1;
-        uint256 _time2;
-        uint256 _value1;
         uint256 _size = _fee.length;
+        require(block.timestamp >= _tokenTime, "Every.finance: max time");
+        uint256 deltaTime_;
         uint256 _deltaTime = block.timestamp - _tokenTime;
-        if (_size > 0) {
-            for (uint256 i = 0; i < _size; ++i) {
-                _value1 = _fee[i].rate;
-                _time1 = _fee[i].time;
-                if (i == _size - 1) {
-                    _feeRate = 0;
-                    break;
-                } else {
-                    _time2 = _fee[i + 1].time;
-                    if ((_deltaTime >= _time1) && (_deltaTime < _time2)) {
-                        _feeRate = _value1;
-                        break;
-                    }
+        if (_size == 0) {
+            return 0;
+        } else if (_deltaTime <= _fee[0].time) {
+            return _fee[0].rate;
+        } else if (deltaTime_ > _fee[_size - 1].time) {
+            return 0;
+        } else {
+            for (uint256 i = 0; i < _size - 1; ) {
+                if (
+                    (deltaTime_ > _fee[i].time) &&
+                    (deltaTime_ <= _fee[i + 1].time)
+                ) {
+                    return _fee[i + 1].rate;
+                }
+                unchecked {
+                    i++;
                 }
             }
+            return 0;
         }
     }
 

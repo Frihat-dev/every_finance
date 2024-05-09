@@ -47,8 +47,18 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     mapping(uint256 => uint256) public indexes;
     mapping(uint256 => address) public holders;
 
-    event Staked(uint256 _tokenId, uint256 _amount1, address indexed _to);
-    event Unstaked(uint256 _tokenId, uint256 _amount1, address indexed _to);
+    event Staked(
+        uint256 _tokenId,
+        uint256 _amount1,
+        address indexed _to,
+        uint256 _option
+    );
+    event Unstaked(
+        uint256 _tokenId,
+        uint256 _amount1,
+        address indexed _to,
+        uint256 _option
+    );
     event RewardPaid(
         address indexed _rewardToken,
         uint256 _reward,
@@ -83,14 +93,18 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     }
 
     modifier updateReward() {
+        _updateReward();
+        _;
+    }
+
+    function _updateReward() public {
         for (uint256 i = 0; i < packs.length; i++) {
             packs[i].rewardPerTokenStored = rewardPerToken(i);
             packs[i].lastUpdateTime = lastTimeReward(i);
         }
-        _;
     }
 
-    function _updateReward(uint256 tokenId_) internal {
+    function _updateReward(uint256 tokenId_) public {
         for (uint256 i = 0; i < packs.length; i++) {
             rewards[i][tokenId_] += earned(i, tokenId_);
             rewardPerTokenPaid[i][tokenId_] = packs[i].rewardPerTokenStored;
@@ -254,7 +268,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             );
         }
 
-        emit Staked(tokenId_, amount_, to_);
+        emit Staked(tokenId_, amount_, to_, option_);
     }
 
     function unstake(
@@ -263,16 +277,15 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 option_,
         address to_
     ) public whenNotPaused updateReward {
-        require((option_ >= 0) && (option_ <= 2), "Formation.Fi: out of range");
+        require((option_ == 1) || (option_ == 2), "Formation.Fi: out of range");
         require(tokenId_ != 0, "Formation.Fi: amount is zero");
         _updateReward(tokenId_);
-        if ((option_ == 1) || (option_ == 2)) {
-            require(amount_ != 0, "Formation.Fi:  zero amount");
-            require(
-                ((holders[tokenId_] == msg.sender) ||
-                    (IERC721(parityToken).ownerOf(tokenId_) == msg.sender)),
-                "Formation.Fi: not owner"
-            );
+        require(
+            ((holders[tokenId_] == msg.sender) ||
+                (IERC721(parityToken).ownerOf(tokenId_) == msg.sender)),
+            "Formation.Fi: not owner"
+        );
+        if (amount_ != 0) {
             require(
                 balances[tokenId_] >= amount_,
                 "Formation.Fi: ParityData.Amount is zero"
@@ -286,13 +299,14 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             }
             IERC20(token).safeTransfer(to_, amount_);
         }
-        if ((option_ == 0) || (option_ == 2)) {
+        if (option_ == 2) {
             require(holders[tokenId_] == msg.sender, "Formation.Fi: no owner");
+            require(balances[tokenId_] == 0, "FORM amount is not zero");
             _burn(tokenId_);
             holders[tokenId_] = address(0);
             IERC721(parityToken).safeTransferFrom(address(this), to_, tokenId_);
-            emit Unstaked(tokenId_, amount_, to_);
         }
+        emit Unstaked(tokenId_, amount_, to_, option_);
     }
 
     function claim(uint256 tokenId_, address _to) public updateReward {
@@ -473,7 +487,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
                 _pack.weights.beta +
                 _tokenGamma.balanceOf(_safeHouse) *
                 _pack.weights.gamma) /
-            ParityData.FACTOR_PRICE_DECIMALS;
+            ParityData.COEFF_SCALE_DECIMALS;
     }
 
     function pause() public onlyRole(DEFAULT_ADMIN_ROLE) {

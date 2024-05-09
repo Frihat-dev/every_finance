@@ -219,6 +219,11 @@ contract StakingToken is AccessControlEnumerable, Pausable {
             (_amount0 != 0) || (_amount1 != 0),
             "Formation.Fi: amount is zero"
         );
+
+        require(
+            (_amount0 != 0) || (_amount1 != 0),
+            "Formation.Fi: amount is zero"
+        );
         _updateReward(_to);
         if (_amount0 != 0) {
             totalSupply.amount0 += _amount0;
