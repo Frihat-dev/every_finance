@@ -12,7 +12,7 @@ library ParityMath {
     function sub(ParityData.Amount storage _var1, ParityData.Amount memory _var2) internal {
         require((_var1.alpha >= _var2.alpha ) &&
         (_var1.beta >= _var2.beta ) &&
-        (_var1.gamma >= _var2.gamma ), "Formation.Fi: negative number");
+        (_var1.gamma >= _var2.gamma ), "Every.Finance: negative number");
         _var1.alpha = _var1.alpha - _var2.alpha;
         _var1.beta = _var1.beta - _var2.beta;
         _var1.gamma = _var1.gamma - _var2.gamma;
@@ -30,7 +30,7 @@ library ParityMath {
         returns (ParityData.Amount memory _var) {
         require((_var1.alpha >= _var2.alpha ) &&
         (_var1.beta >= _var2.beta ) &&
-        (_var1.gamma >= _var2.gamma ), "Formation.Fi: negative number");
+        (_var1.gamma >= _var2.gamma ), "Every.Finance: negative number");
         _var.alpha = _var1.alpha - _var2.alpha;
         _var.beta = _var1.beta - _var2.beta;
         _var.gamma = _var1.gamma - _var2.gamma;

@@ -8,7 +8,7 @@ library ParityStorageUpdate {
         uint256 _size = _data.length; 
         uint256 _availableAmount = ParityLogic.getTotalValueUntilLastEventPerProduct(_data, _indexEvent, _id);
         if (_availableAmount > 0){
-            require (_availableAmount >= _amount, "Formation.Fi: no available amount");
+            require (_availableAmount >= _amount, "Every.Finance: no available amount");
             uint256 _localAmount;
             uint256 k = 0;
             ParityData.Event memory _event;
@@ -47,7 +47,7 @@ library ParityStorageUpdate {
     function deleteEventData(ParityData.Event[] storage _data, uint256 _index) 
         internal {
         require( _index <= _data.length - 1,
-            "Formation.Fi: out of range");
+            "Every.Finance: out of range");
         for (uint256 i = _index; i< _data.length; i++){
             if ( i+1 <= _data.length - 1){
                 _data[i] = _data[i+1];
@@ -71,7 +71,7 @@ library ParityStorageUpdate {
         ParityData.Event[] storage _dataBalancePerTokenPerEvent, uint256 _amount, 
         uint256 _indexEvent, uint256 _id) internal {
         require( _id >= 0 && _id <= 2, 
-        "Formation.Fi: not in range");  
+        "Every.Finance: not in range");  
         if (_id==0){
             _dataBalancePerToken.alpha -= _amount;
             if (_dataBalancePerToken.alpha <TOLERANCE){ 

@@ -228,10 +228,6 @@ library ParityLogic {
                         _amountToWithdrawFromDeposit.beta),
                 _depositValue.gamma * ParityData.COEFF_SCALE_DECIMALS
             );
-            _amountToWithdrawFromDeposit = ParityMath.div2(
-                _amountToWithdrawFromDeposit,
-                ParityData.COEFF_SCALE_DECIMALS
-            );
         }
         _totalAmountToWithdrawFromTokens =
             _totalAmountToWithdraw -
@@ -249,6 +245,10 @@ library ParityLogic {
                 _totalAmountToWithdrawFromTokens * _weights.gamma
             );
         }
+        _amountToWithdrawFromDeposit = ParityMath.div2(
+                _amountToWithdrawFromDeposit,
+                ParityData.COEFF_SCALE_DECIMALS
+            );
     }
 
     function calculateRebalancingData(
@@ -370,25 +370,25 @@ library ParityLogic {
             _depositBalancePerToken.alpha == 0 &&
                 _depositBalancePerToken.beta == 0 &&
                 _depositBalancePerToken.gamma == 0,
-            "Formation.Fi: deposit on pending"
+            "Every.Finance: deposit on pending"
         );
         require(
             _withdrawalBalancePerToken.alpha == 0 &&
                 _withdrawalBalancePerToken.beta == 0 &&
                 _withdrawalBalancePerToken.gamma == 0,
-            "Formation.Fi: withdrawal on pending"
+            "Every.Finance: withdrawal on pending"
         );
         require(
             _tokenBalancePerToken.alpha == 0 &&
                 _tokenBalancePerToken.beta == 0 &&
                 _tokenBalancePerToken.gamma == 0,
-            "Formation.Fi: tokens on pending"
+            "Every.Finance: tokens on pending"
         );
         require(
             _depositRebalancingBalancePerToken.alpha == 0 &&
                 _depositRebalancingBalancePerToken.beta == 0 &&
                 _depositRebalancingBalancePerToken.gamma == 0,
-            "Formation.Fi: deposit rebalancing on pending"
+            "Every.Finance: deposit rebalancing on pending"
         );
         return true;
     }
@@ -425,14 +425,11 @@ library ParityLogic {
         if (_totalTokenValue > 0) {
             uint256[3] memory _scaledPrice;
             _scaledPrice[0] =
-                (_price[0] * ParityData.COEFF_SCALE_DECIMALS) /
-                ParityData.FACTOR_PRICE_DECIMALS;
+                _price[0] * ParityData.COEFF_SCALE_DECIMALS;
             _scaledPrice[1] =
-                (_price[1] * ParityData.COEFF_SCALE_DECIMALS) /
-                ParityData.FACTOR_PRICE_DECIMALS;
+                _price[1] * ParityData.COEFF_SCALE_DECIMALS;
             _scaledPrice[2] =
-                (_price[2] * ParityData.COEFF_SCALE_DECIMALS) /
-                ParityData.FACTOR_PRICE_DECIMALS;
+                _price[2] * ParityData.COEFF_SCALE_DECIMALS;
             _weights = ParityMath.mulMultiCoefDiv2(
                 _tokenBalancePerToken,
                 _scaledPrice,
@@ -451,8 +448,7 @@ library ParityLogic {
         _withdrawalFees.gamma = _amountToWithdrawFromTokens.gamma * _fee.gamma;
         uint256[3] memory _scaledPrice;
         uint256 _scale = ParityData.COEFF_SCALE_DECIMALS *
-            ParityData.COEFF_SCALE_DECIMALS *
-            ParityData.COEFF_SCALE_DECIMALS;
+            ParityData.COEFF_SCALE_DECIMALS * ParityData.COEFF_SCALE_DECIMALS ;
         _scaledPrice[0] = _price[0] * _scale;
         _scaledPrice[1] = _price[1] * _scale;
         _scaledPrice[2] = _price[2] * _scale;

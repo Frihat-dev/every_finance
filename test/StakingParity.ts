@@ -338,6 +338,8 @@ describe("StakingParity", function () {
 
     const stakingParity = await StakingParity.deploy(tokenParity.target, tokenParityStorage.target, managementParity.target, form.target, owner.address, treasury.address);
     await stakingParity.grantRole(await stakingParity.MANAGER(), owner.address);
+  
+   
     return {
       form, 
       stakingParity,
@@ -391,8 +393,8 @@ describe("StakingParity", function () {
       await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
       await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
       await investmentParity.connect(owner).depositRequest(owner.address, [0,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
-      const depositBalance = await tokenParityStorage.depositBalance();
       await managementParity.connect(manager).startNextEvent();
+      const depositBalance = await tokenParityStorage.depositBalance();
       await managementParity.connect(manager).depositManagerRequest([depositBalance[0], depositBalance[1], depositBalance[2]]);
       await investmentAlpha.connect(manager).startNextEvent();
       await investmentAlpha.connect(manager).validateDeposits([1], depositBalance[0]);
@@ -448,22 +450,26 @@ describe("StakingParity", function () {
      await form.connect(treasury).approve(stakingParity.target, ethers.parseUnits("3000000","ether"))
       const rewardDuration = 3 * 24 * 60 * 60;
       const minBoostingFactor = ethers.parseUnits("0.3","ether");
-      const minTotalSupply = 100; 
       const minRatio = ethers.parseUnits("0.15","ether");
       const idealAmount = ethers.parseUnits("10000","ether");
       const minAmount = ethers.parseUnits("200","ether");
+      const minTotalSupply = ethers.parseUnits("2000","ether");
       const minRatio2 = ethers.parseUnits("0.1","ether");
       const idealAmount2 = ethers.parseUnits("20000","ether");
 
     await stakingParity.connect(owner).addPack(form.target, ethers.parseUnits("1000000","ether"), rewardDuration, minBoostingFactor,
-    minAmount, [minRatio, minRatio, minRatio], [idealAmount, idealAmount, idealAmount], [ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.15","ether"), ethers.parseUnits("0.45","ether")]); 
+    minAmount, minTotalSupply, [minRatio, minRatio, minRatio], [idealAmount, idealAmount, idealAmount], [ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.15","ether"), ethers.parseUnits("0.45","ether")]); 
 
     await tokenParity.connect(owner).approve(stakingParity.target, 1);
     await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), 2, staker1.address);
 
     console.log( await stakingParity.boostingRewardFactor(0, 1));
-    await stakingParity.connect(staker1).unstake(1, ethers.parseUnits("500","ether"), 1 ,  staker1.address);
-    await stakingParity.connect(staker1).claim(1, staker1.address);
+    await stakingParity.connect(staker1).unstake(1, ethers.parseUnits("30000","ether"), 2,  owner.address);
+    console.log( await stakingParity.boostingRewardFactor(0, 1));
+    await stakingParity.connect(owner).claim(1, staker1.address);
+    await tokenParity.connect(owner).approve(stakingParity.target, 1);
+    await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), 2, staker1.address);
+    console.log( await stakingParity.boostingRewardFactor(0, 1));
     await stakingParity.connect(staker1).exit(1, staker1.address);
     await stakingParity.connect(owner).notifyRewardAmount(0, ethers.parseUnits("1000000","ether"), rewardDuration);
     

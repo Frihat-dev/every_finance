@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./libraries/ParityStorageUpdate.sol";
 import "./IManagementParity.sol";
 import "./ISafeHouse.sol";
 import "./IManagementParityParams.sol";
 
+
 /**
- * @author Formation.Fi.
+ * @author Every.Finance.
  * @notice Implementation of the contract TokenParityLogic.
  */
 
@@ -46,26 +47,26 @@ contract TokenParityLogic is Ownable {
     IManagementParityParams public managementParityParams;
 
     modifier onlyManagementParity() {
-        require(managementParity != address(0), "Formation.Fi: zero address");
+        require(managementParity != address(0), "Every.Finance: zero address");
         require(
             msg.sender == managementParity,
-            "Formation.Fi: no ManagementParity"
+            "Every.Finance: no ManagementParity"
         );
         _;
     }
 
     function setTokenParity(address _tokenParity) public onlyOwner {
-        require(_tokenParity != address(0), "Formation.Fi: zero address");
+        require(_tokenParity != address(0), "Every.Finance: zero address");
         tokenParity = _tokenParity;
     }
 
     function setInvestmentParity(address _investmentParity) public onlyOwner {
-        require(_investmentParity != address(0), "Formation.Fi: zero address");
+        require(_investmentParity != address(0), "Every.Finance: zero address");
         investmentParity = _investmentParity;
     }
 
     function setSafeHouse(address _safeHouse) public onlyOwner {
-        require(_safeHouse != address(0), "Formation.Fi: zero address");
+        require(_safeHouse != address(0), "Every.Finance: zero address");
         safeHouse = ISafeHouse(_safeHouse);
     }
 
@@ -73,10 +74,10 @@ contract TokenParityLogic is Ownable {
         address _managementParity,
         address _managementParityParams
     ) public onlyOwner {
-        require(_managementParity != address(0), "Formation.Fi: zero address");
+        require(_managementParity != address(0), "Every.Finance: zero address");
         require(
             _managementParityParams != address(0),
-            "Formation.Fi: zero address"
+            "Every.Finance: zero address"
         );
         managementParity = _managementParity;
         managementParityParams = IManagementParityParams(
@@ -89,7 +90,7 @@ contract TokenParityLogic is Ownable {
         uint256 _amount,
         uint256 _id
     ) external onlyManagementParity {
-        require(_id >= 0 && _id <= 2, "Formation.Fi: out of range");
+        require(_id >= 0 && _id <= 2, "Every.Finance: out of range");
         ParityStorageUpdate.updateTokenBalancePerToken(
             tokenBalancePerToken[_tokenId],
             flowTimePerToken[_tokenId],
@@ -360,9 +361,10 @@ contract TokenParityLogic is Ownable {
         ParityData.Position memory _position,
         uint256 _indexEvent,
         uint256[3] memory _price,
-        bool _isFree
+        bool _isFree,
+        bool _isRequest
     ) external {
-        require(msg.sender == investmentParity, "Formation.Fi: no Proxy");
+        require(msg.sender == investmentParity, "Every.Finance: no Proxy");
         _rebalanceParityPosition(
             _position.tokenId,
             _position.userWeights,
@@ -375,19 +377,31 @@ contract TokenParityLogic is Ownable {
         returnPerToken[_position.tokenId] = _position.userReturn;
         riskPerToken[_position.tokenId] = _position.userRisk;
         weightsPerToken[_position.tokenId] = _position.userWeights;
+        if (_isRequest){
+            tokenIdsToRebalance[_position.tokenId] = false;
+            delete rebalancingRequests[_position.tokenId];
+        }
     }
 
     function submitRebalancingParityPositionRequest(
         ParityData.Position memory _position
     ) external {
-        require(msg.sender == investmentParity, "Formation.Fi: no Proxy");
-        require(
-            !tokenIdsToRebalance[_position.tokenId],
+        require(msg.sender == investmentParity, "Every.Finance: no Proxy");
+      /*  require(
+         !tokenIdsToRebalance[_position.tokenId],
             "rebalancing request exists"
         );
-        tokenIdsToRebalance[_position.tokenId] = true;
-        rebalancingRequests[_position.tokenId] = _position;
-    }
+      */
+       if (!tokenIdsToRebalance[_position.tokenId]){
+            tokenIdsToRebalance[_position.tokenId] = true;
+        }
+        rebalancingRequests[_position.tokenId].tokenId = _position.tokenId;
+        rebalancingRequests[_position.tokenId].userOption = _position.userOption;
+        rebalancingRequests[_position.tokenId].userRisk = _position.userRisk;
+        rebalancingRequests[_position.tokenId].userReturn = _position.userReturn;
+        rebalancingRequests[_position.tokenId].userWeights = _position.userWeights;
+        rebalancingRequests[_position.tokenId].amount += _position.amount;
+    }   
 
     function _rebalanceParityPosition(
         uint256 _tokenId,
@@ -528,17 +542,16 @@ contract TokenParityLogic is Ownable {
 
     function cancelWithdrawalRequest(
         uint256 _tokenId,
-        uint256 _indexEvent,
-        uint256[3] memory _price
+        uint256 _indexEvent
     ) external {
-        require(msg.sender == investmentParity, "Formation.Fi: no proxy");
+        require(msg.sender == investmentParity, "Every.Finance: no proxy");
         (bool _isCancel, uint256 _index) = ParityLogic
             .isCancelWithdrawalRequest(
                 withdrawalBalancePerTokenPerEvent[_tokenId],
                 _indexEvent
             );
-        require(_isCancel == true, "Formation.Fi: no cancel");
-        _cancelRebalancing(_tokenId, _indexEvent, _price);
+        require(_isCancel == true, "Every.Finance: no cancel");
+        //_cancelRebalancing(_tokenId, _indexEvent, _price);
         ParityData.Amount memory _withdrawalFee;
         uint256 _indexWithdrawalFee = ParityLogic.searchIndexEvent(
             tokenWithdrawalFee[_tokenId],
@@ -572,7 +585,7 @@ contract TokenParityLogic is Ownable {
             true
         );
         */
-        safeHouse.sendBackWithdrawalFee(_withdrawalFee);
+       safeHouse.sendBackWithdrawalFee(_withdrawalFee);
     }
 
     function withdrawalRequest(
@@ -582,8 +595,8 @@ contract TokenParityLogic is Ownable {
         uint256[3] memory _price,
         address _owner
     ) external {
-        require(msg.sender == investmentParity, "Formation.Fi: no proxy");
-        _cancelRebalancing(_tokenId, _indexEvent, _price);
+        require(msg.sender == investmentParity, "Every.Finance: no proxy");
+        //_cancelRebalancing(_tokenId, _indexEvent, _price);
         ParityData.Amount memory _amountToWithdrawFromDeposit;
         ParityData.Amount memory _amountToWithdrawFromTokens;
         ParityData.Amount memory _withdrawalFees;
@@ -602,10 +615,11 @@ contract TokenParityLogic is Ownable {
         ParityData.Fee[]
             memory _withdrawalVariableFeeData = managementParityParams
                 .getWithdrawalVariableFeeData();
-        _withdrawalFees.alpha = ParityLogic.calculateWithdrawalFees(
+       _withdrawalFees.alpha = ParityLogic.calculateWithdrawalFees(
             flowTimePerToken[_tokenId].alpha,
             _withdrawalVariableFeeData
         );
+        
         _withdrawalFees.beta = ParityLogic.calculateWithdrawalFees(
             flowTimePerToken[_tokenId].beta,
             _withdrawalVariableFeeData
@@ -613,7 +627,8 @@ contract TokenParityLogic is Ownable {
         _withdrawalFees.gamma = ParityLogic.calculateWithdrawalFees(
             flowTimePerToken[_tokenId].gamma,
             _withdrawalVariableFeeData
-        );
+       );
+
         _withdrawalFees = ParityLogic.getWithdrawalTokenFees(
             _withdrawalFees,
             _amountToWithdrawFromTokens,
@@ -643,7 +658,7 @@ contract TokenParityLogic is Ownable {
                 ParityData.Event(_withdrawalFees, _indexEvent)
             );
         }
-        _updateWithdrawalData(
+           _updateWithdrawalData(
             _tokenId,
             _indexEvent,
             _amountToWithdrawFromDeposit,
@@ -651,7 +666,7 @@ contract TokenParityLogic is Ownable {
             _withdrawalFees,
             _price
         );
-        /* _rebalanceParityPosition(
+      /*  _rebalanceParityPosition(
             _tokenId,
             weightsPerToken[_tokenId],
             0,
@@ -704,7 +719,7 @@ contract TokenParityLogic is Ownable {
             _indexEvent,
             _price
         );
-        require(_totalValue > 0, "Formation.Fi : total value is zero");
+        require(_totalValue > 0, "Every.Finance : total value is zero");
         (
             _amountToWithdrawFromDeposit,
             _amountToWithdrawFromTokens
@@ -748,7 +763,7 @@ contract TokenParityLogic is Ownable {
         );
         ParityMath.sub(depositBalance, _amountToWithdrawFromDeposit);
         uint256[3] memory _scaledPrice;
-        uint256 _scale = ParityData.COEFF_SCALE_DECIMALS;
+        uint256 _scale = ParityData.COEFF_SCALE_DECIMALS * ParityData.COEFF_SCALE_DECIMALS;
         _scaledPrice[0] = _price[0] * _scale;
         _scaledPrice[1] = _price[1] * _scale;
         _scaledPrice[2] = _price[2] * _scale;
@@ -839,7 +854,7 @@ contract TokenParityLogic is Ownable {
         //uint256[3] memory _price,
         bool _isFirst
     ) public {
-        require(msg.sender == tokenParity, "Formation.Fi: no Proxy");
+        require(msg.sender == tokenParity, "Every.Finance: no Proxy");
         if (_isFirst) {
             optionPerToken[_position.tokenId] = _position.userOption;
             riskPerToken[_position.tokenId] = _position.userRisk;
@@ -870,12 +885,12 @@ contract TokenParityLogic is Ownable {
             if (optionPerToken[_position.tokenId] == 1) {
                 require(
                     (riskPerToken[_position.tokenId] == _position.userRisk),
-                    "Formation.Fi: no user's risk"
+                    "Every.Finance: no user's risk"
                 );
             } else if (optionPerToken[_position.tokenId] == 2) {
                 require(
                     (returnPerToken[_position.tokenId] == _position.userReturn),
-                    "Formation.Fi: no user's return"
+                    "Every.Finance: no user's return"
                 );
             } else if (optionPerToken[_position.tokenId] == 3) {
                 require(
@@ -885,7 +900,7 @@ contract TokenParityLogic is Ownable {
                             _position.userWeights.beta) &&
                         (weightsPerToken[_position.tokenId].gamma ==
                             _position.userWeights.gamma),
-                    "Formation.Fi: no user's weights"
+                    "Every.Finance: no user's weights"
                 );
             }
             //  _rebalanceParityPosition(

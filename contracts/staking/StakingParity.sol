@@ -27,6 +27,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 rewardPerTokenStored;
         uint256 minBoostingFactor;
         uint256 minAmount;
+        uint256 minTotalSupply;
         ParityData.Amount idealRatio;
         ParityData.Amount idealAmount;
         ParityData.Amount weights;
@@ -75,15 +76,15 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         address _admin,
         address _treasury
     ) {
-        require(_token != address(0), "Formation.Fi: zero address");
-        require(_treasury != address(0), "Formation.Fi: zero address");
-        require(_parityToken != address(0), "Formation.Fi: zero address");
+        require(_token != address(0), "Every.Finance: zero address");
+        require(_treasury != address(0), "Every.Finance: zero address");
+        require(_parityToken != address(0), "Every.Finance: zero address");
         require(
             _tokenParityStorage != address(0),
-            "Formation.Fi: zero address"
+            "Every.Finance: zero address"
         );
-        require(_managementParity != address(0), "Formation.Fi: zero address");
-        require(_admin != address(0), "Formation.Fi: zero address");
+        require(_managementParity != address(0), "Every.Finance: zero address");
+        require(_admin != address(0), "Every.Finance: zero address");
         tokenParityStorage = _tokenParityStorage;
         parityToken = _parityToken;
         managementParity = _managementParity;
@@ -98,33 +99,33 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     }
 
     function _updateReward() public {
-        for (uint256 i = 0; i < packs.length; i++) {
-            packs[i].rewardPerTokenStored = rewardPerToken(i);
-            packs[i].lastUpdateTime = lastTimeReward(i);
+        if (packs.length != 0){
+            for (uint256 i = 0; i < packs.length; i++) {
+                packs[i].rewardPerTokenStored = rewardPerToken(i);
+                packs[i].lastUpdateTime = lastTimeReward(i);
+            }
         }
     }
 
     function _updateReward(uint256 tokenId_) public {
-        for (uint256 i = 0; i < packs.length; i++) {
-            rewards[i][tokenId_] += earned(i, tokenId_);
-            rewardPerTokenPaid[i][tokenId_] = packs[i].rewardPerTokenStored;
-        }
+            if (packs.length != 0){
+                for (uint256 i = 0; i < packs.length; i++) {
+                    rewards[i][tokenId_] += earned(i, tokenId_);
+                    rewardPerTokenPaid[i][tokenId_] = packs[i].rewardPerTokenStored;
+                }
+            }
     }
 
+    
     function getTokenIdsSize(address _user) external view returns (uint256) {
         return tokenIds[_user].length;
     }
 
-    function setTotalSupply(
-        uint256 _totalSupply
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        totalSupply = _totalSupply;
-    }
-
+  
     function setTreasury(
         address _treasury
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_treasury != address(0), "zero address");
+        require(_treasury != address(0), "Every.Finance: zero address");
         treasury = _treasury;
     }
 
@@ -134,6 +135,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 _rewardDuration,
         uint256 _minBoostingFactor,
         uint256 _minAmount,
+        uint256 _minTotalSupply,
         ParityData.Amount memory _idealRatio,
         ParityData.Amount memory _idealAmount,
         ParityData.Amount memory _weights
@@ -152,6 +154,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
                 0,
                 _minBoostingFactor,
                 _minAmount,
+                _minTotalSupply,
                 _idealRatio,
                 _idealAmount,
                 _weights
@@ -170,18 +173,19 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 _rewardDuration,
         uint256 _minBoostingFactor,
         uint256 _minAmount,
+        uint256 _minTotalSupply,
         ParityData.Amount memory _idealRatio,
         ParityData.Amount memory _idealAmount,
         ParityData.Amount memory _weights
     ) external onlyRole(MANAGER) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: index pack is out of range");
         require(
             packs[_id].rewardPerTokenStored == 0,
-            "Formation.Fi: no update"
+            "Every.Finance: no update"
         );
         require(
             packs[_id].lastUpdateTime < block.timestamp,
-            "Formation.Fi: out of time"
+            "Every.Finance: out of time"
         );
         uint256 _rewardPerSecond = packs[_id].rewardTotal / _rewardDuration;
         uint256 _periodFinish = packs[_id].lastUpdateTime + _rewardDuration;
@@ -190,13 +194,14 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         packs[_id].rewardDuration = _rewardDuration;
         packs[_id].minBoostingFactor = _minBoostingFactor;
         packs[_id].minAmount = _minAmount;
+        packs[_id].minTotalSupply = _minTotalSupply;
         packs[_id].idealRatio = _idealRatio;
         packs[_id].idealAmount = _idealAmount;
         packs[_id].weights = _weights;
     }
 
     function lastTimeReward(uint256 _id) public view returns (uint256) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         uint256 _periodFinish = packs[_id].periodFinish;
         return
             block.timestamp < _periodFinish ? block.timestamp : _periodFinish;
@@ -205,7 +210,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     function rewardPerToken(
         uint256 _id
     ) public view returns (uint256 _rewardPerTokenStored) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         Pack memory _pack = packs[_id];
         uint256 _totalValue = getTotalWeightedAmount(_id);
         if (_totalValue == 0) {
@@ -215,7 +220,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
                 _pack.rewardPerTokenStored +
                 (((lastTimeReward(_id) - _pack.lastUpdateTime) *
                     _pack.rewardPerSecond) * ParityData.COEFF_SCALE_DECIMALS) /
-                Math.max(_pack.minAmount, _totalValue);
+                Math.max(_pack.minTotalSupply, _totalValue);
         }
         return _rewardPerTokenStored;
     }
@@ -224,7 +229,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 _id,
         uint256 _tokenId
     ) public view returns (uint256) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         uint256 _value = getWeightedAmount(_id, _tokenId);
         return
             (boostingRewardFactor(_id, _tokenId) *
@@ -240,17 +245,24 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 option_,
         address to_
     ) public whenNotPaused updateReward {
-        require(to_ != address(0), "Formation.Fi: zero address");
-        require((option_ >= 0) && (option_ <= 2), "Formation.Fi: out of range");
-        require(tokenId_ != 0, "Formation.Fi: zero tokenId");
+        require(to_ != address(0), "Every.Finance: zero address");
+        require((option_ >= 0) && (option_ <= 2), "Every.Finance: out of range");
+        require(tokenId_ != 0, "Every.Finance: zero tokenId"); 
         _updateReward(tokenId_);
         if ((option_ == 1) || (option_ == 2)) {
-            require(amount_ != 0, "Formation.Fi:  zero amount");
-            require(
-                ((holders[tokenId_] == msg.sender) ||
-                    (IERC721(parityToken).ownerOf(tokenId_) == msg.sender)),
-                "Formation.Fi: not owner"
-            );
+            require(amount_ != 0, "Every.Finance:  zero amount");
+            if (option_ == 1){
+                require(
+                (holders[tokenId_] == msg.sender),
+                "Every.Finance: not staker"
+               );
+            } else {
+                 require(
+                (IERC721(parityToken).ownerOf(tokenId_) == msg.sender),
+                "Every.Finance: not owner"
+               );
+
+            }
 
             balances[tokenId_] += amount_;
             totalSupply += amount_;
@@ -277,18 +289,17 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 option_,
         address to_
     ) public whenNotPaused updateReward {
-        require((option_ == 1) || (option_ == 2), "Formation.Fi: out of range");
-        require(tokenId_ != 0, "Formation.Fi: amount is zero");
+        require((option_ == 1) || (option_ == 2), "Every.Finance: out of range");
+        require(tokenId_ != 0, "Every.Finance: token Id is zero");
         _updateReward(tokenId_);
         require(
-            ((holders[tokenId_] == msg.sender) ||
-                (IERC721(parityToken).ownerOf(tokenId_) == msg.sender)),
-            "Formation.Fi: not owner"
+            (holders[tokenId_] == msg.sender),
+            "Every.Finance: not owner"
         );
         if (amount_ != 0) {
             require(
                 balances[tokenId_] >= amount_,
-                "Formation.Fi: ParityData.Amount is zero"
+                "Every.Finance: max amount"
             );
 
             unchecked {
@@ -300,8 +311,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             IERC20(token).safeTransfer(to_, amount_);
         }
         if (option_ == 2) {
-            require(holders[tokenId_] == msg.sender, "Formation.Fi: no owner");
-            require(balances[tokenId_] == 0, "FORM amount is not zero");
+            require(balances[tokenId_] == 0, "Every.Finance: FORM amount is not zero");
             _burn(tokenId_);
             holders[tokenId_] = address(0);
             IERC721(parityToken).safeTransferFrom(address(this), to_, tokenId_);
@@ -315,7 +325,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         require(
             ((holders[tokenId_] == msg.sender) ||
                 (IERC721(parityToken).ownerOf(tokenId_) == msg.sender)),
-            "Formation.Fi: not owner"
+            "Every.Finance: not owner"
         );
         address _token;
         for (uint256 i = 0; i < packs.length; i++) {
@@ -338,7 +348,11 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         uint256 _id,
         uint256 tokenId_
     ) public view returns (uint256 _factor) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: index Pack is out of range");
+        if(holders[tokenId_] == address(0)){
+            _factor = 0;
+        } else {
+      
         Pack memory _pack = packs[_id];
         ParityData.Amount memory _amount0 = ITokenParityStorage(
             tokenParityStorage
@@ -387,6 +401,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         if (_amount1 >= _pack.minAmount) {
             _factor = Math.max(_factor, _pack.minBoostingFactor);
         }
+     }
     }
 
     function calculateFactor(
@@ -419,7 +434,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             _rewardsDuration,
             packs[_id].rewardDuration
         );
-        require(_rewardsDuration != 0, "Formation.Fi: zero rewardsDuration");
+        require(_rewardsDuration != 0, "Every.Finance: zero rewards duration");
         uint256 _rewardTotal = packs[_id].rewardTotal + _reward;
         packs[_id].rewardTotal = _rewardTotal;
         if (block.timestamp >= packs[_id].periodFinish) {
@@ -443,7 +458,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             uint256 _balance = IERC20(_rewardToken).balanceOf(treasury);
             require(
                 packs[_id].rewardPerSecond <= _balance / _rewardsDuration,
-                "Formation.Fi: Provided reward too high"
+                "Every.Finance: Provided reward too high"
             );
             packs[_id].periodFinish = block.timestamp + _rewardsDuration;
             packs[_id].rewardDuration = _rewardsDuration;

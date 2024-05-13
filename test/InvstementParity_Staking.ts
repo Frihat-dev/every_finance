@@ -13,6 +13,7 @@ describe("Investment", function () {
     const owner = accounts[0];
     const admin = accounts[1];
     const manager = accounts[2];
+    const treasury = accounts[5];
     const maxIndexEvent = 10;
     const decimals = 6;
     const id = 0;
@@ -327,9 +328,35 @@ describe("Investment", function () {
     await investmentAlpha.connect(admin).updateManagementParity(managementParity.target);
     await investmentBeta.connect(admin).updateManagementParity(managementParity.target);
     await investmentGamma.connect(admin).updateManagementParity(managementParity.target);
+    const Form = await ethers.getContractFactory("StableToken");
+    const form = await Form.deploy(18);
+    const StakingParity = await ethers.getContractFactory("StakingParity");
+    const stakingParity = await StakingParity.deploy(tokenParity.target, tokenParityStorage.target, managementParity.target, form.target, owner.address, treasury.address);
+    await stakingParity.grantRole(await stakingParity.MANAGER(), owner.address);
+    await managementParity.connect(admin).setIsStakingParity(true);
+    await managementParity.connect(admin).setStakingParity(stakingParity.target);
+    
+    await form.mint(owner.address, ethers.parseUnits("20000000","ether"));
+    await form.mint(treasury.address, ethers.parseUnits("10000000","ether"));
+
+     await form.connect(owner).approve(stakingParity.target, ethers.parseUnits("20000000","ether"));
+     await form.connect(treasury).approve(stakingParity.target, ethers.parseUnits("10000000","ether"))
+      const rewardDuration = 3 * 24 * 60 * 60;
+      const minBoostingFactor = ethers.parseUnits("0.3","ether");
+      const minRatio = ethers.parseUnits("0.15","ether");
+      const idealAmount = ethers.parseUnits("10000","ether");
+      const minAmount = ethers.parseUnits("200","ether");
+      const minTotalSupply = ethers.parseUnits("2000","ether");
+      const minRatio2 = ethers.parseUnits("0.1","ether");
+      const idealAmount2 = ethers.parseUnits("20000","ether");
+
+    await stakingParity.connect(owner).addPack(form.target, ethers.parseUnits("10000000","ether"), rewardDuration, minBoostingFactor,
+    minAmount, minTotalSupply, [minRatio, minRatio, minRatio], [idealAmount, idealAmount, idealAmount], [ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.15","ether"), ethers.parseUnits("0.45","ether")]); 
     await tokenAlpha.connect(admin).approve(safeHouseParity.target, ethers.parseUnits("1000000","ether"));
     await tokenBeta.connect(admin).approve(safeHouseParity.target, ethers.parseUnits("1000000","ether"));
     await tokenGamma.connect(admin).approve(safeHouseParity.target, ethers.parseUnits("1000000","ether"));
+    
+    
     
     return {
       investmentParity,
@@ -345,6 +372,9 @@ describe("Investment", function () {
       owner,
       admin,
       manager,
+      form, 
+      stakingParity,
+      tokenParity, 
       managementAlpha,
       managementBeta,
       managementGamma
@@ -364,21 +394,29 @@ describe("Investment", function () {
         owner,
         admin,
         manager,
+        stakingParity, 
+        form, 
+        tokenParity
       } = await deployeFixture();
      
       await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
       await stableToken.connect(owner).approve(investmentParity.target, ethers.parseUnits("1000","ether"));
       await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+      await tokenParity.connect(owner).approve(stakingParity.target, 1);
+      await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), 2, owner.address);
+      await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 1);
       await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
       await investmentParity.connect(owner).rebalanceRequest([2, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.5","ether")]]);
       await investmentParity.connect(owner).rebalanceRequest([1, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
+      await investmentParity.connect(manager).validateRebalancingRequest([2, 1]);
+      await investmentParity.connect(owner).depositRequest(owner.address, [1,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
       console.log(await tokenParityStorage.tokenIdsToRebalance(2));
       console.log(await tokenParityStorage.getRebalancingRequest(2));
-      await investmentParity.connect(manager).validateRebalancingRequest([2, 1]);
+      
       console.log(await tokenParityStorage.tokenIdsToRebalance(2));
       console.log(await tokenParityStorage.getRebalancingRequest(2));
       console.log(await tokenParityStorage.weightsPerToken(2));
-      await investmentParity.connect(owner).withdrawRequest(1, ethers.parseUnits("0.5","ether"));
+      //await investmentParity.connect(owner).withdrawRequest(1, ethers.parseUnits("0.5","ether"));
       await investmentParity.connect(owner).withdrawRequest(2, ethers.parseUnits("1","ether"));
       const tvl = await investmentParity.connect(owner).getTotalTokenValue(2);
       console.log(tvl);
@@ -407,13 +445,24 @@ describe("managementParity ", function () {
       owner,
       admin,
       manager,
+      form, 
+      stakingParity, 
+      tokenParity
     } = await deployeFixture();
    
     await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
     await stableToken.connect(owner).approve(investmentParity.target, ethers.parseUnits("1000","ether"));
     await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+    await tokenParity.connect(owner).approve(stakingParity.target, 1);
+    await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), 2, owner.address);
     await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
     await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+
+    await tokenParity.connect(owner).approve(stakingParity.target, 2);
+    await stakingParity.connect(owner).stake(2, ethers.parseUnits("1000","ether"), 0, owner.address);
+
+    await tokenParity.connect(owner).approve(stakingParity.target, 3);
+    await stakingParity.connect(owner).stake(3, ethers.parseUnits("1000","ether"), 0, owner.address);
     await investmentParity.connect(owner).depositRequest(owner.address, [0,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
     await managementParity.connect(manager).startNextEvent();
     const depositBalance = await managementParity.depositBalance();
@@ -483,9 +532,9 @@ describe("managementParity ", function () {
       owner,
       admin,
       manager,
-      managementAlpha,
-      managementBeta,
-      managementGamma
+      form,
+      stakingParity, 
+      tokenParity
     } = await deployeFixture();
    
     await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
@@ -493,12 +542,9 @@ describe("managementParity ", function () {
     await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
     await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
     await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+    await tokenParity.connect(owner).approve(stakingParity.target, 1);
+    await stakingParity.connect(owner).stake(1, ethers.parseUnits("1000","ether"), 0, owner.address);
     await investmentParity.connect(owner).depositRequest(owner.address, [0,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
-
-    await managementAlpha.connect(manager).updateTokenPrice(169800000);
-    await managementBeta.connect(manager).updateTokenPrice(126700000);
-    await managementGamma.connect(manager).updateTokenPrice(91990000);
-    
     await managementParity.connect(manager).startNextEvent();
     const depositBalance = await managementParity.depositBalance();
     await managementParity.connect(manager).depositManagerRequest([depositBalance[0], depositBalance[1], depositBalance[2]]);
@@ -514,18 +560,22 @@ describe("managementParity ", function () {
     await managementParity.connect(manager).distributeToken(0, [1, 2, 3, 4]);
     await managementParity.connect(manager).distributeToken(1, [1, 2, 3, 4]);
     await managementParity.connect(manager).distributeToken(2, [1, 2, 3, 4]);
+    await stakingParity.connect(owner).exit(1, owner.address);
   
-  
-    await investmentParity.connect(owner).withdrawRequest(1,  ethers.parseUnits("0.5","ether"));
+   await investmentParity.connect(owner).withdrawRequest(1,  ethers.parseUnits("0.5","ether"));
     await investmentParity.connect(owner).withdrawRequest(2,  ethers.parseUnits("0.95","ether"));
     await investmentParity.connect(owner).withdrawRequest(3,  ethers.parseUnits("0.1","ether"));
     await investmentParity.connect(owner).withdrawRequest(4,  ethers.parseUnits("1","ether"));
     await investmentParity.connect(owner).withdrawRequest(3,  ethers.parseUnits("0.4","ether"));
     await investmentParity.connect(owner).withdrawRequest(3,  ethers.parseUnits("0.6","ether"));
-    await managementAlpha.connect(manager).updateTokenPrice(131200000);
-    await managementBeta.connect(manager).updateTokenPrice(93950000);
-    await managementGamma.connect(manager).updateTokenPrice(96870000);
-    
+    await tokenParity.connect(owner).approve(stakingParity.target, 1);
+    await tokenParity.connect(owner).approve(stakingParity.target, 2);
+    await tokenParity.connect(owner).approve(stakingParity.target, 3);
+    await tokenParity.connect(owner).approve(stakingParity.target, 4);
+    await stakingParity.connect(owner).stake(1, ethers.parseUnits("1000","ether"), 2, owner.address);
+    await stakingParity.connect(owner).stake(2, ethers.parseUnits("10000","ether"), 2, owner.address);
+    await stakingParity.connect(owner).stake(3, ethers.parseUnits("1000","ether"), 2, owner.address);
+    await stakingParity.connect(owner).stake(4, ethers.parseUnits("10000","ether"), 2, owner.address);
     console.log("kkkk", await tokenParityStorage.withdrawalBalancePerToken(3));
     console.log("kkkk", await tokenParityStorage.withdrawalBalancePerToken(1));
     console.log("kkkk", await tokenParityStorage.withdrawalBalancePerToken(2));
@@ -607,9 +657,12 @@ it("General case with rebalancing  ", async function () {
     owner,
     admin,
     manager,
+    form, 
+    stakingParity,
+    tokenParity, 
     managementAlpha,
     managementBeta,
-    managementGamma
+    managementGamma 
   } = await deployeFixture();
  
   await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
@@ -618,9 +671,10 @@ it("General case with rebalancing  ", async function () {
   await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequest(owner.address, [0,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
-  await managementAlpha.connect(manager).updateTokenPrice(169800000);
-    await managementBeta.connect(manager).updateTokenPrice(126700000);
-    await managementGamma.connect(manager).updateTokenPrice(91990000);
+  await  tokenParity.connect(owner).approve(stakingParity.target, 4);
+  await stakingParity.connect(owner).stake(4, ethers.parseUnits("30000","ether"), 2, owner.address);
+ 
+ 
   await managementParity.connect(manager).startNextEvent();
   const depositBalance = await managementParity.depositBalance();
   await managementParity.connect(manager).depositManagerRequest([depositBalance[0], depositBalance[1], depositBalance[2]]);
@@ -636,11 +690,7 @@ it("General case with rebalancing  ", async function () {
   await managementParity.connect(manager).distributeToken(0, [1, 2, 3, 4]);
   await managementParity.connect(manager).distributeToken(1, [1, 2, 3, 4]);
   await managementParity.connect(manager).distributeToken(2, [1, 2, 3, 4]);
-
-  await investmentParity.connect(owner).rebalanceRequest([1,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
-  console.log("rebalancing fee", await investmentParity.getRebalancingFee(1));
-  await investmentParity.connect(owner).rebalanceRequest([1,  ethers.parseUnits("2000","ether"), 3, 0, 0, [ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.3","ether")]]);
-  console.log("rebalancing fee", await investmentParity.getRebalancingFee(1));
+  await investmentParity.connect(owner).rebalanceRequest([4,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
   await investmentParity.connect(owner).withdrawRequest(2,  ethers.parseUnits("0.5","ether"));
   await investmentParity.connect(owner).cancelWithdrawRequest(2);
   await investmentParity.connect(owner).withdrawRequest(2,  ethers.parseUnits("0.5","ether"));
@@ -648,30 +698,20 @@ it("General case with rebalancing  ", async function () {
   console.log("tokenBalancePerToken_2", await tokenParityStorage.tokenBalancePerToken(2));
   console.log("depositBalancePerToken_2", await tokenParityStorage.depositBalancePerToken(2));
   await investmentParity.connect(owner).withdrawRequest(3,  ethers.parseUnits("0.8","ether"));
-  await investmentParity.connect(owner).rebalanceRequest([4, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.6","ether"), ethers.parseUnits("0.15","ether"), ethers.parseUnits("0.25","ether")]]);
-  await investmentParity.connect(owner).withdrawRequest(4,  ethers.parseUnits("1","ether"));
-  console.log("tokenBalancePerToken_4_avant_rebalancing", await tokenParityStorage.tokenBalancePerToken(4));
-  console.log("depositBalancePerToken_4_avant_rebalancing", await tokenParityStorage.depositBalancePerToken(4));
-  console.log("withdrawalBalancePerToken_4_avant_rebalancing", await tokenParityStorage.withdrawalBalancePerToken(4));
-  console.log("depositRebalancingBalancePerToken_4_apres_rebalancing", await tokenParityStorage.depositRebalancingBalancePerToken(4));
-  console.log("withdrawalRebalancingBalancePerToken_4_apres_rebalancing", await tokenParityStorage.withdrawalRebalancingBalancePerToken(4));
-  await investmentParity.connect(owner).rebalanceRequest([4, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
+ // await investmentParity.connect(owner).withdrawRequest(4,  ethers.parseUnits("1","ether"));
   await investmentParity.connect(owner).rebalanceRequest([2, 0, 3, 0, 0, [ethers.parseUnits("0.35","ether"), ethers.parseUnits("0.45","ether"), ethers.parseUnits("0.2","ether")]]);
   await investmentParity.connect(owner).rebalanceRequest([3, 0, 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
   console.log("tokenIdsToRebalance", await tokenParityStorage.tokenIdsToRebalance(2));
   console.log(await tokenParityStorage.getRebalancingRequest(2));
-  
   await managementAlpha.connect(manager).updateTokenPrice(160000000);
   await managementBeta.connect(manager).updateTokenPrice(120000000);
   await managementGamma.connect(manager).updateTokenPrice(91000000);
   
-  await investmentParity.connect(manager).validateRebalancingRequest([1, 2, 3, 4]);
+  await investmentParity.connect(manager).validateRebalancingRequest([4, 2, 3]);
+  await  tokenParity.connect(owner).approve(stakingParity.target, 2);
+  await stakingParity.connect(owner).stake(2, ethers.parseUnits("30000","ether"), 2, owner.address);
   await investmentParity.connect(owner).cancelWithdrawRequest(2);
-  console.log("tokenBalancePerToken_4_apres_rebalancing", await tokenParityStorage.tokenBalancePerToken(4));
-  console.log("depositBalancePerToken_4_apres_rebalancing", await tokenParityStorage.depositBalancePerToken(4));
-  console.log("withdrawalBalancePerToken_4_apres_rebalancing", await tokenParityStorage.withdrawalBalancePerToken(4));
-  console.log("depositRebalancingBalancePerToken_4_apres_rebalancing", await tokenParityStorage.depositRebalancingBalancePerToken(4));
-  console.log("withdrawalRebalancingBalancePerToken_4_apres_rebalancing", await tokenParityStorage.withdrawalRebalancingBalancePerToken(4));
+  await investmentParity.connect(owner).depositRequest(owner.address, [4,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
   await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
@@ -684,7 +724,15 @@ it("General case with rebalancing  ", async function () {
   await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
-  await investmentParity.connect(manager).rebalanceManagerRequest([8, 11, 12]);
+  await  tokenParity.connect(owner).approve(stakingParity.target, 3);
+  await stakingParity.connect(owner).stake(3, ethers.parseUnits("30000","ether"), 2, owner.address);
+  
+  await  tokenParity.connect(owner).approve(stakingParity.target, 1);
+  await stakingParity.connect(owner).stake(1, ethers.parseUnits("30000","ether"), 2, owner.address);
+  await  tokenParity.connect(owner).approve(stakingParity.target, 10);
+  await stakingParity.connect(owner).stake(10, ethers.parseUnits("30000","ether"), 2, owner.address);
+  await investmentParity.connect(manager).rebalanceManagerRequest([1, 8, 10, 2, 12]);
+  
   await managementParity.connect(manager).startNextEvent();
   const withdrawalAmount = await managementParity.withdrawalBalance();
   const rebalancingWithdrawalAmount = await managementParity.withdrawalRebalancingBalance();
@@ -729,8 +777,8 @@ it("General case with rebalancing  ", async function () {
  await  managementParity.connect(manager).withdrawStable(totalRebalancingTokenAmount[0] + totalRebalancingTokenAmount[1] + totalRebalancingTokenAmount[2], safeHouseParity.target, );
 
  await managementParity.connect(manager).rebalancingDepositManagerRequest([depositRebalancingBalance[0], depositRebalancingBalance[1], depositRebalancingBalance[2]]);
- console.log("totalRebalancingTokenAmount", await managementParity.totalRebalancingTokenAmount());
- console.log("depositRebalancingBalance", await managementParity.depositRebalancingBalance());
+
+
 
  //await investmentAlpha.connect(manager).startNextEvent();
  //await investmentAlpha.connect(manager).validateDeposits([3], totalRebalancingTokenAmount[0]);
@@ -791,10 +839,10 @@ it("General case with rebalancing  ", async function () {
  await investmentParity.connect(owner).withdrawRequest(5,  ethers.parseUnits("0.6","ether"));
  await investmentParity.connect(owner).withdrawRequest(6,  ethers.parseUnits("0.8","ether"));
  await investmentParity.connect(owner).withdrawRequest(5,  ethers.parseUnits("0.2","ether"));
- await investmentParity.connect(owner).withdrawRequest(1,  ethers.parseUnits("1","ether"));
- await investmentParity.connect(owner).withdrawRequest(3,  ethers.parseUnits("0.01","ether"));
- await investmentParity.connect(owner).withdrawRequest(10,  ethers.parseUnits("0.9","ether"));
- await investmentParity.connect(owner).withdrawRequest(10,  ethers.parseUnits("1","ether"));
+// await investmentParity.connect(owner).withdrawRequest(1,  ethers.parseUnits("1","ether"));
+ // await investmentParity.connect(owner).withdrawRequest(3,  ethers.parseUnits("0.01","ether"));
+// await investmentParity.connect(owner).withdrawRequest(10,  ethers.parseUnits("0.9","ether"));
+// await investmentParity.connect(owner).withdrawRequest(10,  ethers.parseUnits("1","ether"));
  
 }); 
 }); 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./libraries/ParityStorageUpdate.sol";
 import "./IManagementParity.sol";
@@ -215,15 +215,17 @@ contract TokenParityStorage is Ownable {
         ParityData.Position memory _position,
         uint256 _indexEvent,
         uint256[3] memory _price,
-        bool _isFree
+        bool _isFree, 
+        bool _isRequest
     ) external {
         (bool success, ) = delegateContract.delegatecall(
             abi.encodeWithSignature(
-                "rebalanceParityPosition((uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256)),uint256,uint256[3],bool)",
+                "rebalanceParityPosition((uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256)),uint256,uint256[3],bool,bool)",
                 _position,
                 _indexEvent,
                 _price,
-                _isFree
+                _isFree, 
+                _isRequest
             )
         );
         require(success == true, "Every.finance: delegatecall fails");
@@ -243,15 +245,13 @@ contract TokenParityStorage is Ownable {
 
     function cancelWithdrawalRequest(
         uint256 _tokenId,
-        uint256 _indexEvent,
-        uint256[3] memory _price
+        uint256 _indexEvent
     ) external {
         (bool success, ) = delegateContract.delegatecall(
             abi.encodeWithSignature(
-                "cancelWithdrawalRequest(uint256,uint256,uint256[3])",
+                "cancelWithdrawalRequest(uint256,uint256)",
                 _tokenId,
-                _indexEvent,
-                _price
+                _indexEvent
             )
         );
         require(success == true, "Every.finance: delegatecall fails");
@@ -280,15 +280,13 @@ contract TokenParityStorage is Ownable {
     function updateUserPreference(
         ParityData.Position memory _position,
         uint256 _indexEvent,
-        uint256[3] memory _price,
         bool _isFirst
     ) external {
         (bool success, ) = delegateContract.delegatecall(
             abi.encodeWithSignature(
-                "updateUserPreference((uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256)),uint256,uint256[3],bool)",
+                "updateUserPreference((uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256)),uint256,bool)",
                 _position,
                 _indexEvent,
-                _price,
                 _isFirst
             )
         );

@@ -279,14 +279,30 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             .alpha +
             rebalancingDepositAmount_.beta +
             rebalancingDepositAmount_.gamma;
-        require(
-            totalRebalancingTokenAmount_ >= totalRebalancingDepositAmount_,
-            "max value"
-        );
-        // rebalancingDepositAmount_.alpha = Math.min(totalRebalancingTokenAmount.alpha,  rebalancingDepositAmount_.alpha);
-        //rebalancingDepositAmount_.beta = Math.min(totalRebalancingTokenAmount.beta,  rebalancingDepositAmount_.beta);
-        //  rebalancingDepositAmount_.gamma = Math.min(totalRebalancingTokenAmount.gamma,  rebalancingDepositAmount_.gamma);
+        uint256 delta_ ;
+        uint256 deltaAlpha_ ;
+        uint256 deltaBeta_ ;
+        uint256 deltaGamma_ ;
 
+        if ( totalRebalancingTokenAmount_ < totalRebalancingDepositAmount_){
+            delta_ =  totalRebalancingDepositAmount_ - totalRebalancingTokenAmount_ ;
+            deltaAlpha_ = Math.mulDiv(delta_, rebalancingDepositAmount_.alpha, totalRebalancingDepositAmount_);
+            deltaBeta_ = Math.mulDiv(delta_, rebalancingDepositAmount_.beta, totalRebalancingDepositAmount_);
+            deltaGamma_ = Math.min(rebalancingDepositAmount_.gamma, delta_ - (deltaAlpha_ + deltaBeta_));
+           delta_ = delta_ - (deltaAlpha_ + deltaBeta_ + deltaGamma_);
+           rebalancingDepositAmount_.alpha = rebalancingDepositAmount_.alpha - deltaAlpha_;
+           deltaAlpha_ = Math.min( delta_,  rebalancingDepositAmount_.alpha);
+           rebalancingDepositAmount_.alpha = rebalancingDepositAmount_.alpha -  deltaAlpha_;
+
+           rebalancingDepositAmount_.beta = rebalancingDepositAmount_.beta - deltaBeta_;
+           deltaBeta_ = Math.min( delta_ - deltaAlpha_ ,  rebalancingDepositAmount_.beta);
+           rebalancingDepositAmount_.beta = rebalancingDepositAmount_.beta -  deltaBeta_;
+
+           rebalancingDepositAmount_.gamma = rebalancingDepositAmount_.gamma - deltaGamma_;
+           deltaGamma_ = Math.min( delta_ - (deltaAlpha_ + deltaBeta_) ,  rebalancingDepositAmount_.gamma);
+           rebalancingDepositAmount_.gamma = rebalancingDepositAmount_.gamma -  deltaGamma_;
+        }
+     
         TokenParityStorage(tokenParityStorage).updateTotalBalances(
             ParityData.Amount(0, 0, 0),
             ParityData.Amount(0, 0, 0),
@@ -295,20 +311,19 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         );
         ParityMath.add(totalRebalancingCashAmount, rebalancingDepositAmount_);
         ParityMath.sub(depositRebalancingBalance, rebalancingDepositAmount_);
-        //ParityMath.sub(totalRebalancingTokenAmount, rebalancingDepositAmount_);
-        uint256 deltaAlpha_ = Math.min(
+        deltaAlpha_ = Math.min(
             totalRebalancingTokenAmount.alpha,
             totalRebalancingDepositAmount_
         );
         totalRebalancingTokenAmount.alpha -= deltaAlpha_;
-        uint256 deltaBeta_ = Math.min(
+        deltaBeta_ = Math.min(
             totalRebalancingTokenAmount.beta,
             totalRebalancingDepositAmount_ - deltaAlpha_
         );
         totalRebalancingTokenAmount.beta -= deltaBeta_;
-        uint256 deltaGamma_ = Math.min(
+        deltaGamma_ = Math.min(
             totalRebalancingTokenAmount.gamma,
-            totalRebalancingDepositAmount_ - deltaAlpha_ - deltaBeta_
+            totalRebalancingDepositAmount_ - (deltaAlpha_ + deltaBeta_)
         );
         totalRebalancingTokenAmount.gamma -= deltaGamma_;
         _deposit(rebalancingDepositAmount_);
@@ -346,7 +361,9 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         uint256 _id,
         uint256[] memory _tokenIds
     ) external onlyRole(MANAGER) {
-        IStakingParity(stakingParity)._updateReward();
+        if (isStakingParity){
+            IStakingParity(stakingParity)._updateReward();
+        }
         _distributeTokens(_id, _tokenIds);
     }
 
@@ -678,8 +695,8 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                 if (_tokenAmount != 0) {
                     if (
                         isStakingParity &&
-                        IStakingParity(stakingParity).holders(_tokenIds[i]) !=
-                        address(0)
+                        (IStakingParity(stakingParity).holders(_tokenIds[i]) !=
+                        address(0))
                     ) {
                         IStakingParity(stakingParity)._updateReward(
                             _tokenIds[i]
@@ -744,8 +761,8 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                 if (_tokenAmount != 0) {
                     if (
                         isStakingParity &&
-                        IStakingParity(stakingParity).holders(_tokenIds[i]) !=
-                        address(0)
+                        (IStakingParity(stakingParity).holders(_tokenIds[i]) !=
+                        address(0))
                     ) {
                         IStakingParity(stakingParity)._updateReward(
                             _tokenIds[i]
@@ -789,7 +806,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         // uint256 __totalRebalancingCashAmount;
         uint256 __totalWithdrawalAmount;
         uint256 __totalRebalancingWithdrawalAmount;
-
+        address _owner;
         for (uint256 i = 0; i < _tokenIds.length; ++i) {
             if (IERC721(tokenParity).ownerOf(_tokenIds[i]) == address(0)) {
                 continue;
@@ -836,8 +853,14 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                         indexEvent,
                         _id
                     );
+
+                if (isStakingParity && (IERC721(tokenParity).ownerOf(_tokenIds[i]) == stakingParity)){
+                    _owner = IStakingParity(stakingParity).holders(_tokenIds[i]);
+                } else {
+                    _owner = IERC721(tokenParity).ownerOf(_tokenIds[i]);
+                }
                 stableToken.safeTransfer(
-                    IERC721(tokenParity).ownerOf(_tokenIds[i]),
+                    _owner,
                     _cashAmount / amountScaleDecimals
                 );
                 __totalWithdrawalAmount += _withdrawalAmount;

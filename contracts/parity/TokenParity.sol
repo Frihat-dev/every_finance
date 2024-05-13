@@ -94,14 +94,13 @@ contract TokenParity is ERC721Enumerable, Ownable, AccessControlEnumerable {
         address _account,
         ParityData.Position memory _position,
         uint256 _indexEvent,
-        uint256[3] memory _price,
+       // uint256[3] memory _price,
         bool _isFirst
     ) external onlyRole(INVESTMENT) {
         require(_account != address(0), "Every.finance: zero address");
         tokenParityStorage.updateUserPreference(
             _position,
             _indexEvent,
-            _price,
             _isFirst
         );
         if (_isFirst) {

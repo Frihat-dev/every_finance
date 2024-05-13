@@ -97,7 +97,7 @@ contract ParityLine is AccessControlEnumerable {
     {
         require(
             (_risk >= getMinRisk()) && (_risk <= getMaxRisk()),
-            "Formation.Fi: Rik is out of range"
+            "Every.Finance: Rik is out of range"
         );
         _return = ((a * _risk) / 10 ** 18) + b;
         (_weight_alpha, _weight_beta, _weight_gamma) = _calculateWeights(
@@ -119,7 +119,7 @@ contract ParityLine is AccessControlEnumerable {
     {
         require(
             (_return >= getMinReturn()) && (_return <= getMaxReturn()),
-            "Formation.Fi: Return is out of range"
+            "Every.Finance: Return is out of range"
         );
         _risk = ((_return - b) * 10 ** 18) / a;
         (_weight_alpha, _weight_beta, _weight_gamma) = _calculateWeights(

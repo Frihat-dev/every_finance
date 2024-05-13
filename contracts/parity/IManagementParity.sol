@@ -23,5 +23,8 @@ interface IManagementParity {
     function tokenParityStorage() external view returns(address);
     function managementParityParams() external view returns(address);
     function safeHouse() external view returns(address);
+    function isStakingParity() external view returns(bool);
+    function stakingParity() external view returns(address);
+
     
 }

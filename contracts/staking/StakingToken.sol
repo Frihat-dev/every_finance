@@ -56,10 +56,10 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         address _admin,
         address _treasury
     ) {
-        require(_token0 != address(0), "Formation.Fi: zero address");
-        require(_token1 != address(0), "Formation.Fi: zero address");
-        require(_admin != address(0), "Formation.Fi: zero address");
-        require(_treasury != address(0), "Formation.Fi: zero address");
+        require(_token0 != address(0), "Every.Finance: zero address");
+        require(_token1 != address(0), "Every.Finance: zero address");
+        require(_admin != address(0), "Every.Finance: zero address");
+        require(_treasury != address(0), "Every.Finance: zero address");
         token0 = _token0;
         token1 = _token1;
         treasury = _treasury;
@@ -74,18 +74,24 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         _;
     }
 
-    function _updateReward(address _to) internal {
-        for (uint256 i = 0; i < packs.length; i++) {
-            rewards[i][_to] += earned(i, _to);
-            rewardPerTokenPaid[i][_to] = packs[i].rewardPerTokenStored;
-        }
+    function setTreasury(
+        address _treasury
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_treasury != address(0), "Every.Finance: zero address");
+        treasury = _treasury;
     }
 
-    function setTotalSupply(
-        Balance memory _totalSupply
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        totalSupply = _totalSupply;
+
+    function getTotalSupply() external view returns (Balance memory) {
+        return totalSupply;
     }
+
+    function balanceOf(
+        address _account
+    ) external view returns (Balance memory) {
+        return balances[_account];
+    }
+
 
     function addPack(
         address _rewardToken,
@@ -97,8 +103,8 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         uint256 _idealAmount,
         uint256 _minAmount
     ) external onlyRole(MANAGER) {
-        require(_reward != 0, "zero amount");
-        require(_idealRatio != 0, "zero amount");
+        require(_reward != 0, "Every.Finance: zero amount");
+        require(_idealRatio != 0, "Every.Finance: zero amount");
         uint256 _rewardPerSecond = _reward / _rewardDuration;
         uint256 _periodFinish = block.timestamp + _rewardDuration;
         packs.push(
@@ -134,14 +140,14 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         uint256 _idealAmount,
         uint256 _minAmount
     ) external onlyRole(MANAGER) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         require(
             packs[_id].rewardPerTokenStored == 0,
-            "Formation.Fi: no update"
+            "Every.Finance: no update"
         );
         require(
             packs[_id].lastUpdateTime < block.timestamp,
-            "Formation.Fi: out of time"
+            "Every.Finance: out of time"
         );
         uint256 _rewardPerSecond = packs[_id].rewardTotal / _rewardDuration;
         uint256 _periodFinish = packs[_id].lastUpdateTime + _rewardDuration;
@@ -155,40 +161,17 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         packs[_id].minTotalSupply = _minTotalSupply;
     }
 
-    function setTreasury(
-        address _treasury
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_treasury != address(0), "zero address");
-        treasury = _treasury;
-    }
-
-    // function updateRewardDuration(
-    //    uint256 _id,
-    //   uint256 _rewardDuration
-    //) external onlyOwner {
-    // require(_id < packs.length, "Formation.Fi: no pack");
-    // packs[_id].rewardDuration = _rewardDuration;
-    //}
-
-    function getTotalSupply() external view returns (Balance memory) {
-        return totalSupply;
-    }
-
-    function balanceOf(
-        address _account
-    ) external view returns (Balance memory) {
-        return balances[_account];
-    }
+ 
 
     function lastTimeReward(uint256 _id) public view returns (uint256) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         uint256 _periodFinish = packs[_id].periodFinish;
         return
             block.timestamp < _periodFinish ? block.timestamp : _periodFinish;
     }
 
     function rewardPerToken(uint256 _id) public view returns (uint256) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         Pack memory _pack = packs[_id];
         if (totalSupply.amount0 == 0) {
             return _pack.rewardPerTokenStored;
@@ -201,7 +184,7 @@ contract StakingToken is AccessControlEnumerable, Pausable {
     }
 
     function earned(uint256 _id, address _to) public view returns (uint256) {
-        require(_id < packs.length, "Formation.Fi: no pack");
+        require(_id < packs.length, "Every.Finance: no pack");
         return
             (boostingRewardFactor(_to, _id) *
                 (balances[_to].amount0 *
@@ -214,15 +197,15 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         uint256 _amount1,
         address _to
     ) public whenNotPaused updateReward {
-        require(_to != address(0), "Formation.Fi: zero address");
+        require(_to != address(0), "Every.Finance: zero address");
         require(
             (_amount0 != 0) || (_amount1 != 0),
-            "Formation.Fi: amount is zero"
+            "Every.Finance: amount is zero"
         );
 
         require(
             (_amount0 != 0) || (_amount1 != 0),
-            "Formation.Fi: amount is zero"
+            "Every.Finance: amount is zero"
         );
         _updateReward(_to);
         if (_amount0 != 0) {
@@ -253,12 +236,12 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         uint256 _amount1,
         address _to
     ) public whenNotPaused updateReward {
-        require(_amount0 != 0 || _amount1 != 0, "Formation.Fi: amount is zero");
+        require(_amount0 != 0 || _amount1 != 0, "Every.Finance: amount is zero");
         _updateReward(msg.sender);
         if (_amount0 != 0) {
             require(
                 balances[msg.sender].amount0 >= _amount0,
-                "Formation.Fi: amount is zero"
+                "Every.Finance: amount is zero"
             );
 
             unchecked {
@@ -274,7 +257,7 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         if (_amount1 != 0) {
             require(
                 balances[msg.sender].amount1 >= _amount1,
-                "Formation.Fi: amount is zero"
+                "Every.Finance: amount is zero"
             );
 
             unchecked {
@@ -315,17 +298,6 @@ contract StakingToken is AccessControlEnumerable, Pausable {
         );
     }
 
-    //  function supplyTokenReward(
-    //     uint256 _id,
-    //     uint256 _amountToken
-    //) external onlyOwner {
-    //  packs[_id].rewardTotal += _amountToken;
-    //   IERC20(packs[_id].rewardToken).transferFrom(
-    //     msg.sender,
-    //   treasury,
-    //    _amountToken
-    //   );
-    // }
 
     function boostingRewardFactor(
         address _to,
@@ -363,7 +335,7 @@ contract StakingToken is AccessControlEnumerable, Pausable {
             _rewardsDuration,
             packs[_id].rewardDuration
         );
-        require(_rewardsDuration != 0, "Formation.Fi: zero rewardsDuration");
+        require(_rewardsDuration != 0, "Every.Finance: zero rewardsDuration");
         uint256 _rewardTotal = packs[_id].rewardTotal + _reward;
         packs[_id].rewardTotal = _rewardTotal;
         if (block.timestamp >= packs[_id].periodFinish) {
@@ -387,7 +359,7 @@ contract StakingToken is AccessControlEnumerable, Pausable {
             uint256 _balance = IERC20(_rewardToken).balanceOf(treasury);
             require(
                 packs[_id].rewardPerSecond <= _balance / _rewardsDuration,
-                "Formation.Fi: Provided reward too high"
+                "Every.Finance: Provided reward too high"
             );
             packs[_id].periodFinish = block.timestamp + _rewardsDuration;
             packs[_id].rewardDuration = _rewardsDuration;
@@ -402,5 +374,12 @@ contract StakingToken is AccessControlEnumerable, Pausable {
 
     function unpause() public onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
+    }
+
+    function _updateReward(address _to) internal {
+        for (uint256 i = 0; i < packs.length; i++) {
+            rewards[i][_to] += earned(i, _to);
+            rewardPerTokenPaid[i][_to] = packs[i].rewardPerTokenStored;
+        }
     }
 }
