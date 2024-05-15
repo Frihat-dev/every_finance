@@ -38,7 +38,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     Pack[] public packs;
 
     address public tokenParityStorage;
-    address public parityToken;
+    address public tokenParity;
     address public managementParity;
     address public token;
     mapping(uint256 => mapping(uint256 => uint256)) public rewardPerTokenPaid;
@@ -69,7 +69,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     event RewardsDurationUpdated(uint256 _id, uint256 _rewardsDuration);
 
     constructor(
-        address _parityToken,
+        address _tokenParity,
         address _tokenParityStorage,
         address _managementParity,
         address _token,
@@ -78,7 +78,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
     ) {
         require(_token != address(0), "Every.Finance: zero address");
         require(_treasury != address(0), "Every.Finance: zero address");
-        require(_parityToken != address(0), "Every.Finance: zero address");
+        require(_tokenParity != address(0), "Every.Finance: zero address");
         require(
             _tokenParityStorage != address(0),
             "Every.Finance: zero address"
@@ -86,7 +86,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         require(_managementParity != address(0), "Every.Finance: zero address");
         require(_admin != address(0), "Every.Finance: zero address");
         tokenParityStorage = _tokenParityStorage;
-        parityToken = _parityToken;
+        tokenParity = _tokenParity;
         managementParity = _managementParity;
         token = _token;
         treasury = _treasury;
@@ -116,7 +116,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             }
     }
 
-    
+
     function getTokenIdsSize(address _user) external view returns (uint256) {
         return tokenIds[_user].length;
     }
@@ -128,6 +128,29 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         require(_treasury != address(0), "Every.Finance: zero address");
         treasury = _treasury;
     }
+
+
+    function setTokenParity(
+        address _tokenParity
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_tokenParity != address(0), "Every.Finance: zero address");
+        tokenParity = _tokenParity;
+    }
+
+    function setTokenParityStorage(
+        address _tokenParityStorage
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_tokenParityStorage != address(0), "Every.Finance: zero address");
+        tokenParityStorage = _tokenParityStorage;
+    }
+
+    function setManagementParity(
+        address _managementParity
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_managementParity != address(0), "Every.Finance: zero address");
+        managementParity = _managementParity;
+    }
+
 
     function addPack(
         address _rewardToken,
@@ -258,7 +281,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
                );
             } else {
                  require(
-                (IERC721(parityToken).ownerOf(tokenId_) == msg.sender),
+                (IERC721(tokenParity).ownerOf(tokenId_) == msg.sender),
                 "Every.Finance: not owner"
                );
 
@@ -273,7 +296,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             tokenIds[to_].push(tokenId_);
             indexes[tokenId_] = _size;
             holders[tokenId_] = to_;
-            IERC721(parityToken).safeTransferFrom(
+            IERC721(tokenParity).safeTransferFrom(
                 msg.sender,
                 address(this),
                 tokenId_
@@ -314,7 +337,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
             require(balances[tokenId_] == 0, "Every.Finance: FORM amount is not zero");
             _burn(tokenId_);
             holders[tokenId_] = address(0);
-            IERC721(parityToken).safeTransferFrom(address(this), to_, tokenId_);
+            IERC721(tokenParity).safeTransferFrom(address(this), to_, tokenId_);
         }
         emit Unstaked(tokenId_, amount_, to_, option_);
     }
@@ -324,7 +347,7 @@ contract StakingParity is IERC721Receiver, AccessControlEnumerable, Pausable {
         _updateReward(tokenId_);
         require(
             ((holders[tokenId_] == msg.sender) ||
-                (IERC721(parityToken).ownerOf(tokenId_) == msg.sender)),
+                (IERC721(tokenParity).ownerOf(tokenId_) == msg.sender)),
             "Every.Finance: not owner"
         );
         address _token;

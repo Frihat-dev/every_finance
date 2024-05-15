@@ -774,7 +774,7 @@ it("General case with rebalancing  ", async function () {
  console.log("withdrawalRebalancingBalancePerToken(2)", await tokenParityStorage.withdrawalRebalancingBalancePerToken(2));
  console.log("withdrawalRebalancingBalancePerToken(3)", await tokenParityStorage.withdrawalRebalancingBalancePerToken(3));
  
- await  managementParity.connect(manager).withdrawStable(totalRebalancingTokenAmount[0] + totalRebalancingTokenAmount[1] + totalRebalancingTokenAmount[2], safeHouseParity.target, );
+ // await  managementParity.connect(manager).withdrawStable(totalRebalancingTokenAmount[0] + totalRebalancingTokenAmount[1] + totalRebalancingTokenAmount[2], safeHouseParity.target, );
 
  await managementParity.connect(manager).rebalancingDepositManagerRequest([depositRebalancingBalance[0], depositRebalancingBalance[1], depositRebalancingBalance[2]]);
 

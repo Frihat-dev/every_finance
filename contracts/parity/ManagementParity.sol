@@ -232,7 +232,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
         uint256 _amount,
         address _account
     ) external onlyRole(MANAGER) {
-        stableToken.safeTransfer(_account, _amount / amountScaleDecimals);
+        _withdrawStable(_amount, _account);
     }
 
     function withdrawToken(
@@ -275,6 +275,8 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             .alpha +
             totalRebalancingTokenAmount.beta +
             totalRebalancingTokenAmount.gamma;
+        uint256 cashBalance_ = stableToken.balanceOf(address(this)) * amountScaleDecimals;
+        totalRebalancingTokenAmount_ = Math.min(totalRebalancingTokenAmount_, cashBalance_);
         uint256 totalRebalancingDepositAmount_ = rebalancingDepositAmount_
             .alpha +
             rebalancingDepositAmount_.beta +
@@ -326,6 +328,7 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
             totalRebalancingDepositAmount_ - (deltaAlpha_ + deltaBeta_)
         );
         totalRebalancingTokenAmount.gamma -= deltaGamma_;
+        _withdrawStable(rebalancingDepositAmount_.alpha + rebalancingDepositAmount_.beta + rebalancingDepositAmount_.gamma, safeHouse);
         _deposit(rebalancingDepositAmount_);
     }
 
@@ -1163,6 +1166,13 @@ contract ManagementParity is IERC721Receiver, AccessControlEnumerable {
                 (_amount + _rebalancingAmount)
             );
         }
+    }
+
+    function _withdrawStable(
+        uint256 _amount,
+        address _account
+    ) internal {
+        stableToken.safeTransfer(_account, _amount / amountScaleDecimals);
     }
 
     function onERC721Received(

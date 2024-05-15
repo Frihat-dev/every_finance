@@ -82,6 +82,13 @@ contract StakingToken is AccessControlEnumerable, Pausable {
     }
 
 
+    function setToken0(
+        address _token0
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_token0 != address(0), "Every.Finance: zero address");
+        token0 = _token0;
+    }
+
     function getTotalSupply() external view returns (Balance memory) {
         return totalSupply;
     }

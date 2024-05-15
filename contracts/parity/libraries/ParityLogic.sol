@@ -324,6 +324,26 @@ library ParityLogic {
             _depositBalance.gamma
         );
         _newDeposit -= _depositToAdd.gamma;
+
+        uint256 _totalDepositRebalancing = _depositRebalancing.alpha + _depositRebalancing.beta +
+          _depositRebalancing.gamma;
+        uint256 _totalWithdrawalRebalancing = (_withdrawalRebalancing.alpha * _price[0] + _withdrawalRebalancing.beta * _price[1] +
+         _withdrawalRebalancing.gamma * _price[2]) / ParityData.FACTOR_PRICE_DECIMALS;
+
+        if (_totalDepositRebalancing > _totalWithdrawalRebalancing) {
+           uint256 _totalDeltaDeposit = _totalDepositRebalancing - _totalWithdrawalRebalancing;
+           ParityData.Amount memory _deltaDeposit;
+           _deltaDeposit.alpha = Math.min(_depositRebalancing.alpha, _totalDeltaDeposit);
+           _depositRebalancing.alpha -= _deltaDeposit.alpha;
+           _depositToAdd.alpha += _deltaDeposit.alpha;
+           _deltaDeposit.beta = Math.min(_depositRebalancing.beta, _totalDeltaDeposit - _deltaDeposit.alpha);
+           _depositRebalancing.beta -= _deltaDeposit.beta;
+           _depositToAdd.beta += _deltaDeposit.beta;
+            _deltaDeposit.gamma = Math.min(_depositRebalancing.gamma, _totalDeltaDeposit - (_deltaDeposit.alpha +_deltaDeposit.beta));
+           _depositRebalancing.gamma -= _deltaDeposit.gamma;
+           _depositToAdd.gamma += _deltaDeposit.gamma;
+        }
+
     }
 
     function _calculateRebalancingData(

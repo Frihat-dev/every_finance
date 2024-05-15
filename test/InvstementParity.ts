@@ -407,6 +407,9 @@ describe("managementParity ", function () {
       owner,
       admin,
       manager,
+      managementAlpha,
+      managementBeta,
+      managementGamma
     } = await deployeFixture();
    
     await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
@@ -415,6 +418,16 @@ describe("managementParity ", function () {
     await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
     await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
     await investmentParity.connect(owner).depositRequest(owner.address, [0,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
+    
+    await investmentParity.connect(owner).rebalanceRequest([1, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.2","ether")]]);
+    await investmentParity.connect(owner).rebalanceRequest([2, ethers.parseUnits("234","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.3","ether")]]);
+    await managementAlpha.connect(manager).updateTokenPrice(159800000);
+    await managementBeta.connect(manager).updateTokenPrice(96700000);
+    await managementGamma.connect(manager).updateTokenPrice(81990000); 
+    await investmentParity.connect(manager).validateRebalancingRequest([2, 1]);
+    console.log("KKdepositRebalancingBalance", await tokenParityStorage.depositRebalancingBalance());
+
+
     await managementParity.connect(manager).startNextEvent();
     const depositBalance = await managementParity.depositBalance();
     console.log(depositBalance);
@@ -691,6 +704,8 @@ it("General case with rebalancing  ", async function () {
   const depositBalancenew = await managementParity.depositBalance();
   console.log(withdrawalAmount);
   console.log(rebalancingWithdrawalAmount);
+  console.log(depositBalancenew);
+  console.log(await stableToken.balanceOf(safeHouseParity.target));
 
   await managementParity.connect(manager).depositManagerRequest([depositBalancenew[0] , depositBalancenew[1], depositBalancenew[2]]);
  
@@ -726,7 +741,7 @@ it("General case with rebalancing  ", async function () {
  console.log("withdrawalRebalancingBalancePerToken(2)", await tokenParityStorage.withdrawalRebalancingBalancePerToken(2));
  console.log("withdrawalRebalancingBalancePerToken(3)", await tokenParityStorage.withdrawalRebalancingBalancePerToken(3));
  
- await  managementParity.connect(manager).withdrawStable(totalRebalancingTokenAmount[0] + totalRebalancingTokenAmount[1] + totalRebalancingTokenAmount[2], safeHouseParity.target, );
+ //await  managementParity.connect(manager).withdrawStable(totalRebalancingTokenAmount[0] + totalRebalancingTokenAmount[1] + totalRebalancingTokenAmount[2], safeHouseParity.target, );
 
  await managementParity.connect(manager).rebalancingDepositManagerRequest([depositRebalancingBalance[0], depositRebalancingBalance[1], depositRebalancingBalance[2]]);
  console.log("totalRebalancingTokenAmount", await managementParity.totalRebalancingTokenAmount());
