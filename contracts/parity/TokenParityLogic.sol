@@ -859,28 +859,9 @@ contract TokenParityLogic is Ownable {
             optionPerToken[_position.tokenId] = _position.userOption;
             riskPerToken[_position.tokenId] = _position.userRisk;
             returnPerToken[_position.tokenId] = _position.userReturn;
-            weightsPerToken[_position.tokenId].alpha = _position
-                .userWeights
-                .alpha;
-            weightsPerToken[_position.tokenId].beta = _position
-                .userWeights
-                .beta;
-            weightsPerToken[_position.tokenId].gamma = _position
-                .userWeights
-                .gamma;
-            ParityData.Amount memory _token;
-            _token.alpha = Math.mulDiv(
-                _position.amount,
-                _position.userWeights.alpha,
-                ParityData.COEFF_SCALE_DECIMALS
-            );
-            _token.beta = Math.mulDiv(
-                _position.amount,
-                _position.userWeights.beta,
-                ParityData.COEFF_SCALE_DECIMALS
-            );
-            _token.gamma = _position.amount - (_token.alpha + _token.beta);
-            _updateDepositData(_position.tokenId, _indexEvent, _token);
+            weightsPerToken[_position.tokenId].alpha = _position.userWeights.alpha;
+            weightsPerToken[_position.tokenId].beta = _position.userWeights.beta;
+            weightsPerToken[_position.tokenId].gamma = _position.userWeights.gamma;
         } else {
             if (optionPerToken[_position.tokenId] == 1) {
                 require(
@@ -912,5 +893,19 @@ contract TokenParityLogic is Ownable {
             //   true
             // );
         }
+
+        ParityData.Amount memory _token;
+            _token.alpha = Math.mulDiv(
+                _position.amount,
+                _position.userWeights.alpha,
+                ParityData.COEFF_SCALE_DECIMALS
+            );
+            _token.beta = Math.mulDiv(
+                _position.amount,
+                _position.userWeights.beta,
+                ParityData.COEFF_SCALE_DECIMALS
+            );
+            _token.gamma = _position.amount - (_token.alpha + _token.beta);
+            _updateDepositData(_position.tokenId, _indexEvent, _token);
     }
 }

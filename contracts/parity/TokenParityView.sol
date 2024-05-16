@@ -30,6 +30,12 @@ contract TokenParityView is  Ownable {
         (_withdrawalBalancePerToken.alpha, _withdrawalBalancePerToken.beta, _withdrawalBalancePerToken.gamma) = tokenParityStorage.withdrawalBalancePerToken(_tokenId);
         _totalValue = ParityLogic.getTotalTokenValue( _tokenBalancePerToken,  _depositBalancePerToken,
         _depositRebalancingBalancePerToken, _withdrawalBalancePerToken, _price); 
+        if (tokenParityStorage.tokenIdsToRebalance(_tokenId)){
+            uint256 _newAmount = tokenParityStorage.getRebalancingRequest(_tokenId).amount;
+            _totalValue += _newAmount;
+            uint256 _indexEvent = IManagementParity(TokenParityStorage(tokenParityStorage).managementParity()).indexEvent();
+           _totalValue -= getRebalancingFee(_tokenId, _indexEvent, _price); 
+        }
     } 
 
 
@@ -42,7 +48,13 @@ contract TokenParityView is  Ownable {
         (_depositBalancePerToken.alpha, _depositBalancePerToken.beta, _depositBalancePerToken.gamma)= tokenParityStorage.depositBalancePerToken(_tokenId);
         (_depositRebalancingBalancePerToken.alpha, _depositRebalancingBalancePerToken.beta, _depositRebalancingBalancePerToken.gamma) = tokenParityStorage.depositRebalancingBalancePerToken(_tokenId);
         _totalValue = ParityLogic.getNetTotalTokenValue(_tokenBalancePerToken, _depositBalancePerToken,
-        _depositRebalancingBalancePerToken, _price);  
+        _depositRebalancingBalancePerToken, _price);
+        if (tokenParityStorage.tokenIdsToRebalance(_tokenId)){
+            uint256 _newAmount = tokenParityStorage.getRebalancingRequest(_tokenId).amount;
+            _totalValue += _newAmount;
+            uint256 _indexEvent = IManagementParity(TokenParityStorage(tokenParityStorage).managementParity()).indexEvent();
+           _totalValue -= getRebalancingFee(_tokenId, _indexEvent, _price); 
+        }
     } 
 
 

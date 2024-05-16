@@ -13,6 +13,7 @@ describe("Investment", function () {
     const owner = accounts[0];
     const admin = accounts[1];
     const manager = accounts[2];
+    const treasury = accounts[5];
     const maxIndexEvent = 10;
     const decimals = 6;
     const id = 0;
@@ -369,12 +370,36 @@ describe("Investment", function () {
       await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
       await stableToken.connect(owner).approve(investmentParity.target, ethers.parseUnits("1000","ether"));
       await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+      await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 1);
+      await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 1);
+      console.log("netValue", await investmentParity.getTotalNetTokenValue(1));
+      console.log("totalValue", await investmentParity.getTotalTokenValue(1));
+      console.log("depositBalance", await tokenParityStorage.depositBalance());
+      console.log("depositBalancePerToken", await tokenParityStorage.depositBalancePerToken(1));
+      console.log("depositBalancePerTokenPerEvent", await tokenParityStorage.depositBalancePerTokenPerEvent(1, 0));
+
+      await investmentParity.connect(owner).rebalanceRequest([1, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
+      
+      console.log("netValue", await investmentParity.getTotalNetTokenValue(1));
+      console.log("totalValue", await investmentParity.getTotalTokenValue(1));
+      console.log("depositBalance", await tokenParityStorage.depositBalance());
+      console.log("depositBalancePerToken", await tokenParityStorage.depositBalancePerToken(1));
+      console.log("depositBalancePerTokenPerEvent", await tokenParityStorage.depositBalancePerTokenPerEvent(1, 0));
+   
       await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
       await investmentParity.connect(owner).rebalanceRequest([2, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.5","ether")]]);
-      await investmentParity.connect(owner).rebalanceRequest([1, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
-      console.log(await tokenParityStorage.tokenIdsToRebalance(2));
-      console.log(await tokenParityStorage.getRebalancingRequest(2));
-      await investmentParity.connect(manager).validateRebalancingRequest([2, 1]);
+     // await investmentParity.connect(owner).rebalanceRequest([1, ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.2","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.4","ether")]]);
+;
+      await investmentParity.connect(manager).validateRebalancingRequest([1, 2]);
+      console.log(await tokenParityStorage.tokenIdsToRebalance(1));
+      console.log(await tokenParityStorage.getRebalancingRequest(1))
+      console.log("netValue", await investmentParity.getTotalNetTokenValue(1));
+      console.log("totalValue", await investmentParity.getTotalTokenValue(1));
+      console.log("netValue", await investmentParity.getTotalNetTokenValue(2));
+      console.log("depositBalance", await tokenParityStorage.depositBalance());
+      console.log("depositBalancePerToken", await tokenParityStorage.depositBalancePerToken(1));
+      console.log("depositBalancePerTokenPerEvent", await tokenParityStorage.depositBalancePerTokenPerEvent(1, 0));
+      
       console.log(await tokenParityStorage.tokenIdsToRebalance(2));
       console.log(await tokenParityStorage.getRebalancingRequest(2));
       console.log(await tokenParityStorage.weightsPerToken(2));

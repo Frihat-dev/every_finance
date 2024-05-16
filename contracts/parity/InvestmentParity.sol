@@ -68,8 +68,6 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
         parityLine = _parityLine;
     }
 
-
-
     function setDefaultRisk(
         uint256 _low,
         uint256 _medium,
@@ -398,7 +396,7 @@ contract InvestmentParity is AccessControlEnumerable, Pausable {
             }
             _position = TokenParityStorage(_tokenParityStorage)
                 .getRebalancingRequest(_tokenIds[i]);
-            _rebalanceRequest(_position, true, 2);
+            _rebalanceRequest(_position, false, 2);
         }
     }
 

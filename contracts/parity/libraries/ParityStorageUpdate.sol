@@ -64,7 +64,14 @@ library ParityStorageUpdate {
         internal {
         ParityMath.add(_depositBalancePerToken, _token);
         ParityMath.add(_depositBalance, _token);
-        _depositBalancePerTokenPerEvent.push(ParityData.Event(_token, _indexEvent));
+
+         uint256 _indexDeposit = ParityLogic.searchIndexEvent(_depositBalancePerTokenPerEvent, _indexEvent);
+    
+        if (_indexDeposit < ParityLogic.MAX_INDEX_EVENT) {
+            ParityMath.add(_depositBalancePerTokenPerEvent[_indexDeposit].amount, _token);
+        } else {
+            _depositBalancePerTokenPerEvent.push(ParityData.Event(_token, _indexEvent));
+        }
     }
 
     function updateDataBalancePerToken(ParityData.Amount storage _dataBalancePerToken, 
