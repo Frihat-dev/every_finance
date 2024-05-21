@@ -653,12 +653,13 @@ it("General case with rebalancing  ", async function () {
   await stableToken.mint(owner.address, ethers.parseUnits("1000","ether"));
   await stableToken.connect(owner).approve(investmentParity.target, ethers.parseUnits("1000","ether"));
   await investmentParity.connect(owner).depositRequestWithLowRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
-  await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
+  await investmentParity.connect(owner).depositRequestWithMediumRisk(owner.address, ethers.parseUnits("100","ether"), 0);
   await investmentParity.connect(owner).depositRequestWithHighRisk(owner.address, ethers.parseUnits("1000","ether"), 0);
   await investmentParity.connect(owner).depositRequest(owner.address, [0,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
   await managementAlpha.connect(manager).updateTokenPrice(169800000);
     await managementBeta.connect(manager).updateTokenPrice(126700000);
     await managementGamma.connect(manager).updateTokenPrice(91990000);
+
   await managementParity.connect(manager).startNextEvent();
   const depositBalance = await managementParity.depositBalance();
   await managementParity.connect(manager).depositManagerRequest([depositBalance[0], depositBalance[1], depositBalance[2]]);
@@ -674,7 +675,7 @@ it("General case with rebalancing  ", async function () {
   await managementParity.connect(manager).distributeToken(0, [1, 2, 3, 4]);
   await managementParity.connect(manager).distributeToken(1, [1, 2, 3, 4]);
   await managementParity.connect(manager).distributeToken(2, [1, 2, 3, 4]);
-
+  await time.increase(11000);
   await investmentParity.connect(owner).rebalanceRequest([1,  ethers.parseUnits("1000","ether"), 3, 0, 0, [ethers.parseUnits("0.5","ether"), ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.2","ether")]]);
   console.log("rebalancing fee", await investmentParity.getRebalancingFee(1));
   await investmentParity.connect(owner).rebalanceRequest([1,  ethers.parseUnits("2000","ether"), 3, 0, 0, [ethers.parseUnits("0.3","ether"), ethers.parseUnits("0.4","ether"), ethers.parseUnits("0.3","ether")]]);

@@ -485,19 +485,18 @@ library ParityLogic {
     ) internal view returns (uint256 _feeRate) {
         uint256 _size = _fee.length;
         require(block.timestamp >= _tokenTime, "Every.finance: max time");
-        uint256 deltaTime_;
         uint256 _deltaTime = block.timestamp - _tokenTime;
         if (_size == 0) {
             return 0;
         } else if (_deltaTime <= _fee[0].time) {
             return _fee[0].rate;
-        } else if (deltaTime_ > _fee[_size - 1].time) {
+        } else if (_deltaTime > _fee[_size - 1].time) {
             return 0;
         } else {
             for (uint256 i = 0; i < _size - 1; ) {
                 if (
-                    (deltaTime_ > _fee[i].time) &&
-                    (deltaTime_ <= _fee[i + 1].time)
+                    (_deltaTime > _fee[i].time) &&
+                    (_deltaTime <= _fee[i + 1].time)
                 ) {
                     return _fee[i + 1].rate;
                 }
